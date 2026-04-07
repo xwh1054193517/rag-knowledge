@@ -213,103 +213,125 @@ export default function ConversationList({
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollContainerRef}
+          style={
+            isCollapsed
+              ? {
+                  scrollbarGutter: "auto",
+                  scrollbarWidth: "none",
+                }
+              : undefined
+          }
           className={cn(
             "chat-scrollbar flex h-full min-h-0 flex-col overflow-y-auto pr-0.5",
-            isCollapsed ? "gap-3" : "gap-4"
+            isCollapsed
+              ? "items-center gap-3 overflow-x-hidden pr-0 [&::-webkit-scrollbar]:hidden"
+              : "gap-4"
           )}
           onScroll={handleConversationScroll}
         >
           {groupedConversations.map((group) => (
-            <div key={group.dateGroup} className="space-y-2">
+            <div
+              key={group.dateGroup}
+              className={cn("space-y-2", isCollapsed && "w-full")}
+            >
               {!isCollapsed ? (
                 <p className="px-1 text-sm font-medium text-[#9a837a]">
                   {group.dateGroup}
                 </p>
               ) : null}
 
-              {group.items.map((conversation) => {
-                const isActive = conversation.id === activeConversationId;
+              <div
+                className={cn(
+                  "space-y-2",
+                  isCollapsed && "flex flex-col items-center"
+                )}
+              >
+                {group.items.map((conversation) => {
+                  const isActive = conversation.id === activeConversationId;
 
-                return (
-                  <div
-                    key={conversation.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSelectConversation(conversation.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelectConversation(conversation.id);
-                      }
-                    }}
-                    className={cn(
-                      "group rounded-3xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9b9ae] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fcf7f4]",
-                      isActive
-                        ? "border-[#eaded8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,242,238,0.92))] shadow-[0_16px_36px_rgba(195,162,149,0.14)]"
-                        : "border-transparent bg-white/52 hover:border-[#f0e5df] hover:bg-white/76",
-                      isCollapsed
-                        ? "mx-auto flex h-12 w-12 items-center justify-center p-0"
-                        : "p-3 text-left"
-                    )}
-                  >
-                    {isCollapsed ? (
-                      <MessagesSquare
-                        className={cn(
-                          "size-4 shrink-0",
-                          isActive ? "text-[#9b6f63]" : "text-[#b18479]"
-                        )}
-                      />
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <div
+                  return (
+                    <div
+                      key={conversation.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectConversation(conversation.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onSelectConversation(conversation.id);
+                        }
+                      }}
+                      className={cn(
+                        "group rounded-3xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9b9ae] focus-visible:ring-offset-2 focus-visible:ring-offset-[#fcf7f4]",
+                        isActive
+                          ? "border-[#eaded8] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(250,242,238,0.92))] shadow-[0_16px_36px_rgba(195,162,149,0.14)]"
+                          : "border-transparent bg-white/52 hover:border-[#f0e5df] hover:bg-white/76",
+                        isCollapsed
+                          ? "mx-auto flex h-12 w-12 items-center justify-center p-0"
+                          : "p-3 text-left"
+                      )}
+                    >
+                      {isCollapsed ? (
+                        <MessagesSquare
                           className={cn(
-                            "mt-0.5 rounded-2xl p-2",
-                            isActive ? "bg-[#f7ede8]" : "bg-[#fdf9f6]"
+                            "size-4 shrink-0",
+                            isActive ? "text-[#9b6f63]" : "text-[#b18479]"
                           )}
-                        >
-                          <MessageSquare
+                        />
+                      ) : (
+                        <div className="flex items-start gap-3">
+                          <div
                             className={cn(
-                              "size-4",
-                              isActive ? "text-[#9b6f63]" : "text-[#b18479]"
+                              "mt-0.5 rounded-2xl p-2",
+                              isActive ? "bg-[#f7ede8]" : "bg-[#fdf9f6]"
                             )}
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p
-                                className={cn(
-                                  "truncate text-sm font-medium",
-                                  isActive ? "text-[#5f4c45]" : "text-[#6f5c55]"
-                                )}
-                              >
-                                {conversation.title}
-                              </p>
-                              <p className="mt-1 truncate text-xs text-[#a28a82]">
-                                {conversation.preview}
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={(event) =>
-                                handleAskDelete(event, conversation.id)
-                              }
-                              className="rounded-xl p-2 text-[#c3aba3] opacity-0 transition group-hover:opacity-100 hover:bg-[#fdf5f1] hover:text-[#c37c72]"
-                              aria-label="删除对话"
-                            >
-                              <Trash2 className="size-4" />
-                            </button>
+                          >
+                            <MessageSquare
+                              className={cn(
+                                "size-4",
+                                isActive ? "text-[#9b6f63]" : "text-[#b18479]"
+                              )}
+                            />
                           </div>
-                          <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-[#baa49b]">
-                            {conversation.updatedAt}
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p
+                                  className={cn(
+                                    "truncate text-sm font-medium",
+                                    isActive
+                                      ? "text-[#5f4c45]"
+                                      : "text-[#6f5c55]"
+                                  )}
+                                >
+                                  {conversation.title}
+                                </p>
+                                <p className="mt-1 truncate text-xs text-[#a28a82]">
+                                  {conversation.preview}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(event) =>
+                                  handleAskDelete(event, conversation.id)
+                                }
+                                className="rounded-xl p-2 text-[#c3aba3] opacity-0 transition group-hover:opacity-100 hover:bg-[#fdf5f1] hover:text-[#c37c72]"
+                                aria-label="删除对话"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </div>
+                            <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-[#baa49b]">
+                              {conversation.updatedAt}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
 
