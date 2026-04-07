@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+model Conversation {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  title     String    @db.VarChar(200)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  messages  Message[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  role           MessageRole
+  content        String       @db.Text
+  toolCalls      Json?        @map("tool_calls")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt(sort: Asc)])
+  @@map("messages")
+}
+
+model Document {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  filePath     String         @map("file_path") @db.Text
+  fileHash     String         @map("file_hash") @db.VarChar(128)
+  isPublic     Boolean        @default(false) @map("is_public")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  documentData DocumentData?
+
+  @@unique([userId, fileHash])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([isPublic, updatedAt(sort: Desc)])
+  @@index([userId, isPublic])
+  @@map("documents")
+}
+
+model DocumentData {
+  documentId        String   @id @map("document_id") @db.Uuid
+  content           String   @db.Text
+  metadata          Json?    @map("metadata")
+  embedding         Unsupported("vector(1536)")?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceDocument    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_data")
+}
