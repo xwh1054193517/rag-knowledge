@@ -8,6 +8,10 @@
   - You are about to drop the `User` table. If the table is not empty, all the data it contains will be lost.
 
 */
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- CreateEnum
 CREATE TYPE "MessageRole" AS ENUM ('USER', 'ASSISTANT');
 

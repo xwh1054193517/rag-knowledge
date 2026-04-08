@@ -33,7 +33,7 @@ export default function UserInfo({ isCollapsed, userEmail }: UserInfoProps) {
   const avatarLabel = getAvatarLabel(userEmail);
 
   return (
-    <div className="mt-6 shrink-0 border-t border-[#f0e5df] pt-4">
+    <div className="mt-6 shrink-0 border-t border-[var(--ui-border-soft)] pt-4">
       <AnimatePresence initial={false} mode="wait">
         {!isCollapsed ? (
           <motion.div
@@ -42,19 +42,19 @@ export default function UserInfo({ isCollapsed, userEmail }: UserInfoProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.16 }}
-            className="mb-3 rounded-3xl border border-[#f0e5df] bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(251,245,241,0.82))] p-4"
+            className="mb-3 rounded-3xl border border-[var(--ui-border-soft)] bg-[linear-gradient(180deg,var(--ui-surface),color-mix(in_srgb,var(--ui-surface-muted)_72%,transparent))] p-4 shadow-[0_14px_34px_var(--ui-shadow)]"
           >
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#e6d5ce] bg-[linear-gradient(180deg,#f8efea,#f1e2db)] text-sm font-semibold text-[#8a665c] shadow-sm">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[linear-gradient(180deg,var(--ui-surface),var(--ui-surface-muted))] text-sm font-semibold text-[var(--ui-accent-strong)] shadow-sm">
                 {avatarLabel}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[#6f5c55]">
+                <p className="truncate text-sm font-semibold text-[var(--ui-text)]">
                   {displayName}
                 </p>
                 <p
                   title={userEmail}
-                  className="truncate text-xs text-[#9e857c]"
+                  className="truncate text-xs text-[var(--ui-text-faint)]"
                 >
                   {userEmail}
                 </p>

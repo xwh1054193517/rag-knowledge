@@ -41,32 +41,32 @@ const featureCards: FeatureCard[] = [
     description:
       "基于 LangChain 的多轮对话与工具调用能力，适合继续扩展成完整的 AI 工作流。",
     icon: Bot,
-    iconClassName: "text-[#b18479]",
-    shadowClassName: "shadow-[0_18px_60px_rgba(177,132,121,0.14)]",
+    iconClassName: "text-[var(--ui-accent)]",
+    shadowClassName: "shadow-[0_18px_60px_var(--ui-shadow)]",
   },
   {
     title: "安全会话",
     description:
       "邮箱密码与 Google OAuth 共用一套认证链路，页面和接口都能统一校验登录状态。",
     icon: ShieldCheck,
-    iconClassName: "text-[#c19d8f]",
-    shadowClassName: "shadow-[0_18px_60px_rgba(193,157,143,0.14)]",
+    iconClassName: "text-[var(--ui-text-faint)]",
+    shadowClassName: "shadow-[0_18px_60px_var(--ui-shadow)]",
   },
   {
     title: "Next 技术栈",
     description:
       "基于 Next.js App Router、React 与 Tailwind，方便后续持续扩展页面和交互体验。",
     icon: Boxes,
-    iconClassName: "text-[#a98b86]",
-    shadowClassName: "shadow-[0_18px_60px_rgba(169,139,134,0.12)]",
+    iconClassName: "text-[var(--ui-text-soft)]",
+    shadowClassName: "shadow-[0_18px_60px_var(--ui-shadow)]",
   },
   {
     title: "Supabase",
     description:
       "统一承载认证、数据库与用户隔离能力，让 AI 应用更容易落地和长期维护。",
     icon: BrainCircuit,
-    iconClassName: "text-[#c08b78]",
-    shadowClassName: "shadow-[0_18px_60px_rgba(192,139,120,0.12)]",
+    iconClassName: "text-[var(--ui-accent-strong)]",
+    shadowClassName: "shadow-[0_18px_60px_var(--ui-shadow)]",
   },
 ];
 
@@ -217,49 +217,49 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#fcf7f4] text-[#5a4741]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(224,197,184,0.28),_transparent_28%),radial-gradient(circle_at_82%_18%,_rgba(236,216,206,0.24),_transparent_24%),linear-gradient(180deg,_rgba(255,250,247,0.97),_rgba(248,240,235,0.9))]" />
+    <main className="relative min-h-screen overflow-hidden bg-[var(--ui-bg)] text-[var(--ui-text)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_28%),radial-gradient(circle_at_82%_18%,var(--ui-ambient-2),transparent_24%),linear-gradient(180deg,var(--ui-bg-soft),var(--ui-bg))]" />
       <div className="absolute inset-0 overflow-hidden">
         {particles.map((particle) => (
           <div
             key={particle.id}
-            className="absolute rounded-full bg-[#d8b3a6]"
+            className="absolute rounded-full bg-[var(--ui-border-strong)]"
             style={{
               left: `${particle.x}%`,
               top: `${particle.y}%`,
               width: `${particle.size}px`,
               height: `${particle.size}px`,
               opacity: particle.opacity,
-              boxShadow: "0 0 14px rgba(216, 179, 166, 0.28)",
+              boxShadow: "0 0 14px var(--ui-ambient-2)",
             }}
           />
         ))}
-        <div className="absolute left-[-4rem] top-10 h-64 w-64 rounded-full bg-[#ead8d0]/40 blur-3xl" />
-        <div className="absolute right-[-3rem] top-20 h-80 w-80 rounded-full bg-[#f0ddd4]/36 blur-3xl" />
-        <div className="absolute bottom-[-4rem] left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#e7d3cb]/30 blur-3xl" />
+        <div className="absolute left-[-4rem] top-10 h-64 w-64 rounded-full bg-[var(--ui-ambient-1)] blur-3xl" />
+        <div className="absolute right-[-3rem] top-20 h-80 w-80 rounded-full bg-[var(--ui-ambient-2)] blur-3xl" />
+        <div className="absolute bottom-[-4rem] left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[var(--ui-ambient-3)] blur-3xl" />
       </div>
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#c7a49a] to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--ui-border-strong)] to-transparent" />
 
       <div className="relative mx-auto grid min-h-screen w-full max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <section className="flex flex-col justify-center">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#eadad2] bg-white/82 px-4 py-2 text-xs uppercase tracking-[0.24em] text-[#b18479] shadow-sm shadow-[#f0e3dd]/40 backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] px-4 py-2 text-xs uppercase tracking-[0.24em] text-[var(--ui-accent)] shadow-sm backdrop-blur-sm dark:bg-[var(--ui-surface)]">
               <Orbit className="size-3.5" />
               AI Knowledge Workspace
             </div>
 
             <div className="mt-6 space-y-3">
-              <h1 className="text-4xl font-semibold leading-tight text-[#5a4741] sm:text-5xl">
+              <h1 className="text-4xl font-semibold leading-tight text-[var(--ui-text)] sm:text-5xl">
                 <span className="block">知识检索 RAG Retriever</span>
                 <span className="block">联网搜索 Web Search</span>
                 <span className="block">智能助手 AI Assistant</span>
               </h1>
-              <p className="text-xl font-medium uppercase tracking-[0.18em] text-[#b48c81]">
+              <p className="text-xl font-medium uppercase tracking-[0.18em] text-[var(--ui-text-faint)]">
                 All in Workspace
               </p>
             </div>
 
-            <p className="mt-6 max-w-xl text-sm leading-7 text-[#8a746c] sm:text-base">
+            <p className="mt-6 max-w-xl text-sm leading-7 text-[var(--ui-text-soft)] sm:text-base">
               上传知识库，组织检索、搜索与对话能力，在一个更适合 AI
               工作流的入口里完成认证与使用。
             </p>
@@ -272,15 +272,15 @@ export default function LoginPage() {
                   <div
                     key={card.title}
                     className={cn(
-                      "rounded-3xl border border-[#f1e6e1] bg-white/72 p-5 backdrop-blur-md",
+                      "rounded-3xl border border-[var(--ui-border-soft)] bg-[color:rgba(255,255,255,0.06)] p-5 backdrop-blur-md dark:bg-[var(--ui-surface)]",
                       card.shadowClassName
                     )}
                   >
                     <Icon className={cn("mb-4 size-5", card.iconClassName)} />
-                    <h2 className="text-base font-medium text-[#5a4741]">
+                    <h2 className="text-base font-medium text-[var(--ui-text)]">
                       {card.title}
                     </h2>
-                    <p className="mt-2 text-sm leading-6 text-[#8a746c]">
+                    <p className="mt-2 text-sm leading-6 text-[var(--ui-text-soft)]">
                       {card.description}
                     </p>
                   </div>
@@ -291,17 +291,17 @@ export default function LoginPage() {
         </section>
 
         <section className="lg:justify-self-end">
-          <div className="w-full rounded-[2rem] border border-[#f0e5df] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(249,241,236,0.9))] p-6 shadow-[0_30px_100px_rgba(195,162,149,0.16)] backdrop-blur-xl sm:p-8 lg:w-[28rem]">
+          <div className="w-full rounded-[2rem] border border-[var(--ui-border-soft)] bg-[linear-gradient(180deg,var(--ui-surface),color-mix(in_srgb,var(--ui-surface-muted)_74%,transparent))] p-6 shadow-[0_30px_100px_var(--ui-shadow)] backdrop-blur-xl sm:p-8 lg:w-[28rem]">
             <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-[#b18479]">
+              <p className="text-sm uppercase tracking-[0.24em] text-[var(--ui-accent)]">
                 Account
               </p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#5a4741]">
+              <h2 className="mt-2 text-2xl font-semibold text-[var(--ui-text)]">
                 {mode === "login" ? "登录账户" : "创建账户"}
               </h2>
             </div>
 
-            <div className="relative mt-6 grid grid-cols-2 rounded-full border border-[#eaded8] bg-[#f6efeb] p-1">
+            <div className="relative mt-6 grid grid-cols-2 rounded-full border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-1">
               <div
                 className={cn(
                   "absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] rounded-full bg-white/95 shadow-sm transition-transform duration-300 ease-out",
@@ -318,8 +318,8 @@ export default function LoginPage() {
                 className={cn(
                   "relative z-10 rounded-full px-4 py-2 text-sm transition-colors duration-300",
                   mode === "login"
-                    ? "text-[#7f6259]"
-                    : "text-[#a28a82] hover:text-[#5a4741]"
+                    ? "text-[var(--ui-accent-strong)]"
+                    : "text-[var(--ui-text-faint)] hover:text-[var(--ui-text)]"
                 )}
               >
                 登录
@@ -334,8 +334,8 @@ export default function LoginPage() {
                 className={cn(
                   "relative z-10 rounded-full px-4 py-2 text-sm transition-colors duration-300",
                   mode === "signup"
-                    ? "text-[#7f6259]"
-                    : "text-[#a28a82] hover:text-[#5a4741]"
+                    ? "text-[var(--ui-accent-strong)]"
+                    : "text-[var(--ui-text-faint)] hover:text-[var(--ui-text)]"
                 )}
               >
                 注册
@@ -344,7 +344,7 @@ export default function LoginPage() {
 
             <form className="mt-6 space-y-5" onSubmit={handleEmailAuth}>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-[#5a4741]">
+                <Label htmlFor="email" className="text-[var(--ui-text)]">
                   邮箱
                 </Label>
                 <Input
@@ -354,13 +354,13 @@ export default function LoginPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="h-11 border-[#eaded8] bg-white/92 text-[#5a4741] placeholder:text-[#b39d95] shadow-sm"
+                  className="h-11 border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] text-[var(--ui-text)] placeholder:text-[var(--ui-text-faint)] shadow-sm dark:bg-[var(--ui-surface)]"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-[#5a4741]">
+                <Label htmlFor="password" className="text-[var(--ui-text)]">
                   密码
                 </Label>
                 <Input
@@ -374,7 +374,7 @@ export default function LoginPage() {
                   placeholder={
                     mode === "login" ? "输入你的密码" : "至少 6 位密码"
                   }
-                  className="h-11 border-[#eaded8] bg-white/92 text-[#5a4741] placeholder:text-[#b39d95] shadow-sm"
+                  className="h-11 border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] text-[var(--ui-text)] placeholder:text-[var(--ui-text-faint)] shadow-sm dark:bg-[var(--ui-surface)]"
                   minLength={6}
                   required
                 />
@@ -395,7 +395,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="h-11 w-full border border-[#e8ddd8] bg-[linear-gradient(135deg,#f7efea,#f1e5de)] text-[#7a625a] shadow-[0_10px_24px_rgba(179,147,136,0.14)] hover:bg-[linear-gradient(135deg,#faf4ef,#f4e9e2)]"
+                className="h-11 w-full border border-[var(--ui-border)] bg-[linear-gradient(135deg,var(--ui-surface-muted),var(--ui-surface-strong))] text-[var(--ui-accent-strong)] shadow-[0_10px_24px_var(--ui-shadow)] hover:bg-[linear-gradient(135deg,var(--ui-surface),var(--ui-surface-strong))]"
               >
                 {loading ? <Loader2 className="size-4 animate-spin" /> : null}
                 {mode === "login"
@@ -409,18 +409,18 @@ export default function LoginPage() {
             </form>
 
             <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-[#eaded8]" />
-              <span className="text-xs uppercase tracking-[0.18em] text-[#b39d95]">
+              <div className="h-px flex-1 bg-[var(--ui-border)]" />
+              <span className="text-xs uppercase tracking-[0.18em] text-[var(--ui-text-faint)]">
                 Or continue with
               </span>
-              <div className="h-px flex-1 bg-[#eaded8]" />
+              <div className="h-px flex-1 bg-[var(--ui-border)]" />
             </div>
 
             <Button
               type="button"
               onClick={handleGoogleAuth}
               disabled={loading || googleLoading}
-              className="h-11 w-full border border-[#eaded8] bg-white text-[#6f5c55] shadow-sm hover:bg-[#fdf8f5]"
+              className="h-11 w-full border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] text-[var(--ui-text-soft)] shadow-sm hover:bg-[var(--ui-surface)] dark:bg-[var(--ui-surface)]"
             >
               {googleLoading ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -447,18 +447,18 @@ export default function LoginPage() {
               使用 Google 登录
             </Button>
 
-            <div className="mt-6 rounded-2xl border border-[#eaded8] bg-[linear-gradient(135deg,rgba(224,197,184,0.14),rgba(244,229,221,0.18))] p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-[#7f6259]">
-                <Sparkles className="size-4 text-[#b18479]" />
+            <div className="mt-6 rounded-2xl border border-[var(--ui-border)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--ui-surface-muted)_92%,transparent),color-mix(in_srgb,var(--ui-surface-strong)_72%,transparent))] p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-[var(--ui-accent-strong)]">
+                <Sparkles className="size-4 text-[var(--ui-accent)]" />
                 AI-ready workspace
               </div>
-              <p className="mt-2 text-sm leading-6 text-[#8a746c]">
+              <p className="mt-2 text-sm leading-6 text-[var(--ui-text-soft)]">
                 浅色基调配合粒子与柔和光晕，让整个入口更像面向知识检索与智能助手的
                 AI 产品首页。
               </p>
             </div>
 
-            <p className="mt-6 text-sm leading-6 text-[#a28a82] text-center">
+            <p className="mt-6 text-center text-sm leading-6 text-[var(--ui-text-faint)]">
               {mode === "login"
                 ? "还没有账号？切换到注册即可创建新账户。"
                 : "已有账号？切换回登录即可继续使用。"}

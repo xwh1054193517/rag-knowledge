@@ -55,13 +55,13 @@ model Document {
 }
 
 model DocumentData {
-  documentId        String   @id @map("document_id") @db.Uuid
-  content           String   @db.Text
-  metadata          Json?    @map("metadata")
-  embedding         Unsupported("vector(1536)")?
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  sourceDocument    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId     String                 @id @map("document_id") @db.Uuid
+  content        String                 @db.Text
+  metadata       Json?                  @map("metadata")
+  embedding      Unsupported("vector")?
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceDocument Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_data")
 }

@@ -9,7 +9,7 @@ interface ChatPageShellProps {
 const ChatShell = dynamic(() => import("@/components/chat/chat-shell"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-screen items-center justify-center bg-[#fcf7f4] text-sm text-[#8f776f]">
+    <div className="flex h-screen items-center justify-center bg-[var(--ui-bg)] text-sm text-[var(--ui-text-soft)]">
       正在进入聊天工作区...
     </div>
   ),

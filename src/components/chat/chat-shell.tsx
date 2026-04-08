@@ -1,323 +1,317 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { useChat } from "@ai-sdk/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu } from "lucide-react";
 
-import ChatHistory from "@/components/chat/chat-history";
 import ChatInputBar from "@/components/chat/chat-input-bar";
+import ChatMessage from "@/components/chat/chat-message";
 import ChatSidebar from "@/components/chat/chat-sidebar";
-import type { ConversationItem, PreviewMessage } from "@/components/chat/types";
+import type {
+  ChatMessageItem,
+  ConversationItem,
+} from "@/components/chat/types";
 import { Button } from "@/components/ui/button";
 
 interface ChatShellProps {
   userEmail: string;
 }
 
-const allConversations: ConversationItem[] = [
-  {
-    id: "conv-1",
-    title: "产品需求拆解",
-    preview: "整理 AI Agent 对话应用的核心功能与开发顺序。",
-    dateGroup: "今天",
-    sortOrder: 0,
-    updatedAt: "刚刚",
-  },
-  {
-    id: "conv-2",
-    title: "知识库检索策略",
-    preview: "设计用户私有文档与公开文档混合召回逻辑。",
-    dateGroup: "今天",
-    sortOrder: 1,
-    updatedAt: "10 分钟前",
-  },
-  {
-    id: "conv-3",
-    title: "流式消息设计",
-    preview: "梳理 Vercel AI SDK 的消息结构与前端渲染方式。",
-    dateGroup: "今天",
-    sortOrder: 2,
-    updatedAt: "35 分钟前",
-  },
-  {
-    id: "conv-4",
-    title: "Supabase 路由守卫实现",
-    preview: "设计系统与 AI 模型名称解析、鉴权和页面跳转策略。",
-    dateGroup: "昨天",
-    sortOrder: 3,
-    updatedAt: "昨天 22:16",
-  },
-  {
-    id: "conv-5",
-    title: "会话表结构调整",
-    preview: "统一 UUID 主键和 auth.users 对齐方式。",
-    dateGroup: "昨天",
-    sortOrder: 4,
-    updatedAt: "昨天 18:40",
-  },
-  {
-    id: "conv-6",
-    title: "RAG 检索召回策略",
-    preview: "区分私有知识库与公开文档的混合召回顺序。",
-    dateGroup: "昨天",
-    sortOrder: 5,
-    updatedAt: "昨天 14:25",
-  },
-  {
-    id: "conv-7",
-    title: "聊天输入体验优化",
-    preview: "统一单行输入、发送态按钮与加载反馈。",
-    dateGroup: "更早",
-    sortOrder: 6,
-    updatedAt: "4 月 5 日",
-  },
-  {
-    id: "conv-8",
-    title: "消息存储模型评估",
-    preview: "确认消息、工具调用 JSON 和附件字段的设计。",
-    dateGroup: "更早",
-    sortOrder: 7,
-    updatedAt: "4 月 4 日",
-  },
-  {
-    id: "conv-9",
-    title: "公开文档权限方案",
-    preview: "整理可公开文档的搜索范围和访问限制。",
-    dateGroup: "更早",
-    sortOrder: 8,
-    updatedAt: "4 月 3 日",
-  },
-];
+interface ConversationListResponse {
+  items: ConversationItem[];
+  nextCursor: string | null;
+}
 
-const previewMessages: PreviewMessage[] = [
+interface ConversationDetailResponse {
+  id: string;
+  title: string;
+  messages: UIMessage[];
+}
+
+const CHAT_TIMEOUT_MS = 120_000;
+const PAGE_SIZE = 12;
+
+const initialMessages: ChatMessageItem[] = [
   {
-    id: "msg-1",
+    id: "welcome-assistant",
     role: "assistant",
-    content:
-      "你好，我已经为你准备好了聊天工作区。接下来可以逐步接入真实会话、消息存储和知识库检索。",
-  },
-  {
-    id: "msg-2",
-    role: "user",
-    content: "先把侧边栏和聊天区域 UI 搭起来，整体风格参考 ChatGPT。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
-  {
-    id: "msg-3",
-    role: "assistant",
-    content:
-      "基础布局已经就绪。左侧支持收缩、会话列表、新增和删除入口，右侧保留了消息流与输入区的展示结构。",
-  },
+    parts: [
+      {
+        type: "text",
+        text: "你好，我已经准备好作为你的 AI 助手。你可以直接提问，我会基于当前项目上下文继续协助你。",
+      },
+    ],
+  } as UIMessage,
 ];
 
 const sidebarMotion = {
   expanded: {
     width: 320,
-    transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const },
   },
   collapsed: {
     width: 88,
-    transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 
 /**
- * 聊天工作区外壳，负责管理会话状态与整体布局。
+ * 判断消息是否已经包含可展示内容。
+ */
+function hasRenderableContent(message: UIMessage | undefined): boolean {
+  if (!message) {
+    return false;
+  }
+
+  return message.parts.some((part) => {
+    if (part.type === "text" || part.type === "reasoning") {
+      return part.text.trim().length > 0;
+    }
+
+    return false;
+  });
+}
+
+/**
+ * 根据首条消息生成会话标题。
+ */
+function getConversationTitle(content: string): string {
+  return content.length > 80 ? `${content.slice(0, 80)}...` : content;
+}
+
+/**
+ * 聊天工作区外壳。
  */
 export default function ChatShell({ userEmail }: ChatShellProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [inputValue, setInputValue] = useState("");
-  const [visibleConversationCount, setVisibleConversationCount] = useState(6);
-  const [conversations, setConversations] =
-    useState<ConversationItem[]>(allConversations);
-  const [activeConversationId, setActiveConversationId] = useState(
-    allConversations[0]?.id ?? ""
-  );
+  const [sendingCycle, setSendingCycle] = useState(0);
+  const [isStopPending, setIsStopPending] = useState(false);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [timeoutMessage, setTimeoutMessage] = useState<UIMessage | null>(null);
+  const [isConversationHydrating, setIsConversationHydrating] = useState(true);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const chatScrollEndRef = useRef<HTMLDivElement | null>(null);
+  const previousConversationIdRef = useRef(activeConversationId);
+  const previousMessageCountRef = useRef(0);
+  const timeoutRef = useRef<number | null>(null);
+  const activeConversationIdRef = useRef(activeConversationId);
+  const didInitializeRef = useRef(false);
+  const previousHydratingRef = useRef(isConversationHydrating);
 
-  const activeConversation = useMemo(
-    () =>
-      conversations.find(
-        (conversation) => conversation.id === activeConversationId
-      ) ??
-      conversations[0] ??
-      null,
-    [activeConversationId, conversations]
+  const { messages, sendMessage, setMessages, status, stop } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/runChat",
+      credentials: "include",
+    }),
+  });
+  const previousStatusRef = useRef(status);
+
+  const hasMoreConversations = nextCursor !== null;
+  const displayMessages = useMemo(() => {
+    const baseMessages =
+      messages.length > 0
+        ? messages
+        : activeConversationId
+          ? []
+          : initialMessages;
+
+    return timeoutMessage ? [...baseMessages, timeoutMessage] : baseMessages;
+  }, [activeConversationId, messages, timeoutMessage]);
+  const isSending = status === "submitted" || status === "streaming";
+  const showSendingRipple = isSending && !isStopPending;
+  const lastMessage = messages.at(-1);
+  const showThinkingProcess =
+    isSending &&
+    (!lastMessage ||
+      lastMessage.role !== "assistant" ||
+      !hasRenderableContent(lastMessage));
+
+  /**
+   * 拉取单个会话详情。
+   */
+  const loadConversationDetail = useCallback(
+    async (conversationId: string) => {
+      setIsConversationHydrating(true);
+
+      try {
+        const response = await fetch(`/api/chats/${conversationId}`, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load chat detail.");
+        }
+
+        const data = (await response.json()) as ConversationDetailResponse;
+
+        setMessages(data.messages);
+        setTimeoutMessage(null);
+      } catch (error) {
+        console.error(error);
+        setMessages([]);
+      } finally {
+        setIsConversationHydrating(false);
+      }
+    },
+    [setMessages]
   );
-  const visibleConversations = useMemo(
-    () => conversations.slice(0, visibleConversationCount),
-    [conversations, visibleConversationCount]
+
+  /**
+   * 拉取会话列表，可选择是否同步刷新当前会话内容。
+   */
+  const loadConversations = useCallback(
+    async (reset: boolean, hydrateActiveConversation = true) => {
+      const cursor = reset ? null : nextCursor;
+
+      if (!reset && (!cursor || isLoadingMore)) {
+        return;
+      }
+
+      if (!reset) {
+        setIsLoadingMore(true);
+      }
+
+      try {
+        const searchParams = new URLSearchParams({
+          limit: String(PAGE_SIZE),
+        });
+
+        if (cursor) {
+          searchParams.set("cursor", cursor);
+        }
+
+        const response = await fetch(`/api/chats?${searchParams.toString()}`, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load conversations.");
+        }
+
+        const data = (await response.json()) as ConversationListResponse;
+
+        setConversations((current) =>
+          reset ? data.items : [...current, ...data.items]
+        );
+        setNextCursor(data.nextCursor);
+
+        if (!reset) {
+          return;
+        }
+
+        const nextActiveId =
+          activeConversationIdRef.current &&
+          data.items.some(
+            (conversation) =>
+              conversation.id === activeConversationIdRef.current
+          )
+            ? activeConversationIdRef.current
+            : (data.items[0]?.id ?? "");
+
+        setActiveConversationId(nextActiveId);
+
+        if (!nextActiveId) {
+          setMessages([]);
+          setIsConversationHydrating(false);
+          return;
+        }
+
+        if (!hydrateActiveConversation) {
+          return;
+        }
+
+        await loadConversationDetail(nextActiveId);
+      } catch (error) {
+        console.error(error);
+        if (reset) {
+          setIsConversationHydrating(false);
+        }
+      } finally {
+        setIsLoadingMore(false);
+      }
+    },
+    [isLoadingMore, loadConversationDetail, nextCursor, setMessages]
   );
-  const hasMoreConversations = visibleConversationCount < conversations.length;
 
   useEffect(() => {
-    if (!isSending) {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    if (didInitializeRef.current) {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setIsSending(false);
-      setInputValue("");
-    }, 1600);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isSending]);
+    didInitializeRef.current = true;
+    void loadConversations(true);
+  }, [loadConversations]);
 
   useEffect(() => {
+    const previousStatus = previousStatusRef.current;
+    const didFinishResponse =
+      (previousStatus === "submitted" || previousStatus === "streaming") &&
+      status === "ready";
+
+    previousStatusRef.current = status;
+
+    if (!didFinishResponse) {
+      return;
+    }
+
+    void loadConversations(true, false);
+  }, [loadConversations, status]);
+
+  useEffect(() => {
+    const scrollElement = chatScrollContainerRef.current;
+    const scrollEndElement = chatScrollEndRef.current;
+
+    if (!scrollElement || !scrollEndElement) {
+      return;
+    }
+
+    const isConversationChanged =
+      previousConversationIdRef.current !== activeConversationId;
+    const isMessageCountChanged =
+      previousMessageCountRef.current !== displayMessages.length;
+    const isNearBottom =
+      scrollElement.scrollHeight -
+        scrollElement.scrollTop -
+        scrollElement.clientHeight <
+      96;
+
+    if (isConversationChanged || (isMessageCountChanged && isNearBottom)) {
+      scrollEndElement.scrollIntoView({
+        block: "end",
+        behavior: isConversationChanged ? "smooth" : "auto",
+      });
+    }
+
+    previousConversationIdRef.current = activeConversationId;
+    previousMessageCountRef.current = displayMessages.length;
+  }, [activeConversationId, displayMessages.length]);
+
+  useEffect(() => {
+    const didFinishHydrating =
+      previousHydratingRef.current && !isConversationHydrating;
+
+    previousHydratingRef.current = isConversationHydrating;
+
+    if (!didFinishHydrating) {
+      return;
+    }
+
     chatScrollEndRef.current?.scrollIntoView({
       block: "end",
       behavior: "smooth",
     });
-  }, [activeConversationId]);
+  }, [activeConversationId, isConversationHydrating]);
 
   useEffect(() => {
     if (!isMobileSidebarOpen) {
@@ -336,6 +330,65 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     };
   }, [isMobileSidebarOpen]);
 
+  useEffect(() => {
+    if (!isSending) {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      return;
+    }
+
+    timeoutRef.current = window.setTimeout(() => {
+      stop();
+      setTimeoutMessage({
+        id: `timeout-${Date.now()}`,
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "本次回答超过 120 秒仍未完成，已自动停止。你可以缩小问题范围后重试，或者重新发起一次对话。",
+          },
+        ],
+      } as UIMessage);
+    }, CHAT_TIMEOUT_MS);
+
+    return () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [isSending, stop]);
+
+  /**
+   * 创建新的会话记录。
+   */
+  async function createConversationRecord(title: string) {
+    const response = await fetch("/api/chats", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: getConversationTitle(title),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create chat.");
+    }
+
+    const conversation = (await response.json()) as ConversationItem;
+
+    setConversations((current) => [conversation, ...current]);
+    setActiveConversationId(conversation.id);
+
+    return conversation.id;
+  }
+
   /**
    * 切换侧边栏收缩状态。
    */
@@ -344,92 +397,119 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   }
 
   /**
-   * 创建一个新的本地预览会话。
+   * 新建本地空白会话。
    */
   function handleCreateConversation() {
-    const newConversation: ConversationItem = {
-      id: `conv-${Date.now()}`,
-      title: "新对话",
-      preview: "等待输入第一条消息。",
-      dateGroup: "今天",
-      sortOrder: -Date.now(),
-      updatedAt: "刚刚",
-    };
-
-    setConversations((currentConversations) => [
-      newConversation,
-      ...currentConversations,
-    ]);
-    setVisibleConversationCount((currentCount) => currentCount + 1);
-    setActiveConversationId(newConversation.id);
+    setActiveConversationId("");
+    setMessages([]);
+    setTimeoutMessage(null);
     setIsMobileSidebarOpen(false);
+    setIsConversationHydrating(false);
   }
 
   /**
-   * 删除指定会话，并在需要时切换当前激活项。
+   * 删除指定会话。
    */
-  function handleDeleteConversation(conversationId: string) {
-    setConversations((currentConversations) => {
-      const nextConversations = currentConversations.filter(
-        (conversation) => conversation.id !== conversationId
-      );
-
-      if (conversationId === activeConversationId) {
-        setActiveConversationId(nextConversations[0]?.id ?? "");
-      }
-
-      return nextConversations;
+  async function handleDeleteConversation(conversationId: string) {
+    const response = await fetch(`/api/chats/${conversationId}`, {
+      method: "DELETE",
+      credentials: "include",
     });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const nextConversations = conversations.filter(
+      (conversation) => conversation.id !== conversationId
+    );
+
+    setConversations(nextConversations);
+
+    if (conversationId !== activeConversationId) {
+      return;
+    }
+
+    const nextConversationId = nextConversations[0]?.id ?? "";
+
+    setActiveConversationId(nextConversationId);
+    if (nextConversationId) {
+      await loadConversationDetail(nextConversationId);
+    } else {
+      setMessages([]);
+      setTimeoutMessage(null);
+    }
   }
 
   /**
-   * 选择当前查看的会话。
+   * 切换当前查看的会话。
    */
-  function handleSelectConversation(conversationId: string) {
+  async function handleSelectConversation(conversationId: string) {
+    if (conversationId === activeConversationId) {
+      setIsMobileSidebarOpen(false);
+      return;
+    }
+
     setActiveConversationId(conversationId);
     setIsMobileSidebarOpen(false);
+    await loadConversationDetail(conversationId);
   }
 
   /**
-   * 模拟发送消息的加载态。
+   * 提交用户输入消息。
    */
-  function handleSendMessage() {
-    if (!inputValue.trim()) {
-      return;
+  async function handleSendMessage(value: string) {
+    setIsStopPending(false);
+    setTimeoutMessage(null);
+    setSendingCycle((current) => current + 1);
+    setInputValue("");
+
+    const conversationId =
+      activeConversationId || (await createConversationRecord(value));
+
+    await sendMessage(
+      {
+        text: value,
+      },
+      {
+        body: {
+          conversationId,
+        },
+      }
+    );
+  }
+
+  /**
+   * 中止当前正在生成的回复。
+   */
+  function handleStopMessage() {
+    setIsStopPending(true);
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
 
-    setIsSending(true);
+    stop();
   }
 
   /**
-   * 会话列表滚动到底部时加载更多。
+   * 滚动到底部时继续加载更多会话。
    */
   function handleLoadMoreConversations() {
-    if (isLoadingMore || !hasMoreConversations) {
-      return;
-    }
-
-    setIsLoadingMore(true);
-
-    window.setTimeout(() => {
-      setVisibleConversationCount((currentCount) =>
-        Math.min(currentCount + 3, conversations.length)
-      );
-      setIsLoadingMore(false);
-    }, 550);
+    void loadConversations(false);
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fcf7f4] text-[#5a4741]">
+    <div className="flex h-screen overflow-hidden bg-[var(--ui-bg)] text-[var(--ui-text)]">
       <motion.aside
         animate={isSidebarCollapsed ? "collapsed" : "expanded"}
         variants={sidebarMotion}
-        className="relative hidden h-screen shrink-0 overflow-hidden border-r border-[#f1e6e1] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(250,243,238,0.96))] px-2 py-5 shadow-[18px_0_50px_rgba(195,162,149,0.08)] md:flex md:flex-col pr-1"
+        className="relative hidden h-screen shrink-0 overflow-hidden border-r border-[var(--ui-border-soft)] bg-[linear-gradient(180deg,var(--ui-surface),color-mix(in_srgb,var(--ui-surface-muted)_86%,transparent))] px-2 py-5 pr-1 shadow-[18px_0_50px_var(--ui-shadow)] md:flex md:flex-col"
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(224,197,184,0.16),transparent_34%),radial-gradient(circle_at_bottom,rgba(244,229,221,0.14),transparent_28%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_34%),radial-gradient(circle_at_bottom,var(--ui-ambient-2),transparent_28%)]" />
         <ChatSidebar
           activeConversationId={activeConversationId}
-          conversations={visibleConversations}
+          conversations={conversations}
           hasMore={hasMoreConversations}
           isCollapsed={isSidebarCollapsed}
           isLoadingMore={isLoadingMore}
@@ -449,7 +529,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-[#6d5750]/20 backdrop-blur-[2px] md:hidden"
+            className="fixed inset-0 z-40 bg-[var(--ui-backdrop)] backdrop-blur-[2px] md:hidden"
             onClick={() => setIsMobileSidebarOpen(false)}
           >
             <motion.aside
@@ -457,13 +537,13 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -24, opacity: 0.96 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="relative flex h-full w-[86vw] max-w-[22rem] flex-col overflow-hidden border-r border-[#f1e6e1] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(250,243,238,0.98))] px-3 py-5 shadow-[18px_0_50px_rgba(195,162,149,0.14)]"
+              className="relative flex h-full w-[86vw] max-w-[22rem] flex-col overflow-hidden border-r border-[var(--ui-border-soft)] bg-[linear-gradient(180deg,var(--ui-surface),color-mix(in_srgb,var(--ui-surface-muted)_88%,transparent))] px-3 py-5 shadow-[18px_0_50px_var(--ui-shadow)]"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(224,197,184,0.16),transparent_34%),radial-gradient(circle_at_bottom,rgba(244,229,221,0.14),transparent_28%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_34%),radial-gradient(circle_at_bottom,var(--ui-ambient-2),transparent_28%)]" />
               <ChatSidebar
                 activeConversationId={activeConversationId}
-                conversations={visibleConversations}
+                conversations={conversations}
                 hasMore={hasMoreConversations}
                 isCollapsed={false}
                 isLoadingMore={isLoadingMore}
@@ -482,44 +562,46 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
       </AnimatePresence>
 
       <main className="relative flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(224,197,184,0.18),transparent_24%),radial-gradient(circle_at_82%_18%,rgba(244,229,221,0.14),transparent_20%),linear-gradient(180deg,rgba(255,250,247,0.94),rgba(249,241,236,0.9))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_24%),radial-gradient(circle_at_82%_18%,var(--ui-ambient-2),transparent_20%),linear-gradient(180deg,var(--ui-bg-soft),var(--ui-bg))]" />
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-          <header className="shrink-0 border-b border-white/70 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
+          <header className="shrink-0 border-b border-[color:rgba(255,255,255,0.08)] px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5 dark:border-[var(--ui-border-soft)]">
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsMobileSidebarOpen(true)}
-                  className="h-10 w-10 rounded-2xl border-[#eaded8] bg-white/84 p-0 text-[#b18479] hover:bg-white md:hidden"
+                  className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] md:hidden dark:bg-[var(--ui-surface)]"
                 >
                   <Menu className="size-4" />
                 </Button>
 
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.24em] text-[#b39d95]">
+                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--ui-text-faint)]">
                     Current Chat
                   </p>
-                  <h1 className="mt-2 truncate text-xl font-semibold text-[#5a4741] sm:text-2xl">
-                    {activeConversation?.title ?? "新的对话"}
-                  </h1>
                 </div>
               </div>
             </div>
           </header>
 
           <section className="grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden pb-4 pt-6">
-            <ChatHistory
-              messages={previewMessages}
+            <ChatMessage
+              isLoadingConversation={isConversationHydrating}
+              messages={isConversationHydrating ? [] : displayMessages}
+              isThinking={showThinkingProcess}
               scrollContainerRef={chatScrollContainerRef}
               scrollEndRef={chatScrollEndRef}
             />
             <ChatInputBar
               inputValue={inputValue}
               isSending={isSending}
+              showSendingRipple={showSendingRipple}
+              sendingCycle={sendingCycle}
               onInputChange={setInputValue}
               onSend={handleSendMessage}
+              onStop={handleStopMessage}
             />
           </section>
         </div>

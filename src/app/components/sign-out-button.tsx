@@ -47,7 +47,7 @@ export default function SignOutButton({
       disabled={loading}
       aria-label="退出登录"
       className={cn(
-        "h-11 rounded-2xl border-[#eaded8] bg-white/84 text-[#6f5c55] shadow-sm hover:bg-[#fdf8f5] hover:text-[#7f6259]",
+        "h-11 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] text-[var(--ui-text-soft)] shadow-sm hover:bg-[var(--ui-surface-muted)] hover:text-[var(--ui-accent-strong)] dark:bg-[var(--ui-surface)]",
         collapsed ? "w-11 px-0" : "w-full justify-start gap-2 px-4"
       )}
     >

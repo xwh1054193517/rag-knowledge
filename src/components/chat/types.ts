@@ -1,16 +1,14 @@
-"use client";
+import type { UIMessage } from "ai";
+
+export type ConversationDateGroup = "今天" | "昨天" | "更早";
 
 export interface ConversationItem {
   id: string;
   title: string;
   preview: string;
-  dateGroup: "今天" | "昨天" | "更早";
+  dateGroup: ConversationDateGroup;
   sortOrder: number;
   updatedAt: string;
 }
 
-export interface PreviewMessage {
-  id: string;
-  role: "assistant" | "user";
-  content: string;
-}
+export type ChatMessageItem = UIMessage;

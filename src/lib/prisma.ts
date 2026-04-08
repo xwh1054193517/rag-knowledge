@@ -1,12 +1,17 @@
 import "dotenv/config";
-import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-// 创建一个单例的 Prisma 客户端实例
-const prismaClientSingleInstance = () => {
+
+import { PrismaClient } from "../generated/prisma/client";
+
+/**
+ * 创建 Prisma 单例实例，避免开发环境热更新时重复连接数据库。
+ */
+function prismaClientSingleInstance() {
   const connectionString = `${process.env.DATABASE_URL}`;
   const adapter = new PrismaPg({ connectionString });
+
   return new PrismaClient({ adapter });
-};
+}
 
 declare global {
   var prisma: ReturnType<typeof prismaClientSingleInstance> | undefined;

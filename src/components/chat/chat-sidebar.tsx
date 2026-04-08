@@ -61,7 +61,7 @@ export default function ChatSidebar({
               transition={{ duration: 0.16 }}
               className="min-w-0 flex-1"
             >
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#eaded8] bg-white/90 px-3 py-2 text-xs uppercase tracking-[0.2em] text-[#b18479] shadow-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] px-3 py-2 text-xs uppercase tracking-[0.2em] text-[var(--ui-accent)] shadow-sm dark:bg-[var(--ui-surface)]">
                 <Sparkles className="size-3.5" />
                 Rag Workspace
               </div>
@@ -75,7 +75,7 @@ export default function ChatSidebar({
               type="button"
               variant="outline"
               onClick={onCloseMobile}
-              className="h-10 w-10 rounded-2xl border-[#eaded8] bg-white/84 p-0 text-[#b18479] hover:bg-white md:hidden"
+              className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] md:hidden dark:bg-[var(--ui-surface)]"
             >
               <X className="size-4" />
             </Button>
@@ -86,7 +86,7 @@ export default function ChatSidebar({
               type="button"
               variant="outline"
               onClick={onToggleCollapse}
-              className="h-10 w-10 rounded-2xl border-[#eaded8] bg-white/84 p-0 text-[#b18479] hover:bg-white"
+              className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] dark:bg-[var(--ui-surface)]"
             >
               {isCollapsed ? (
                 <PanelLeftOpen className="size-4" />

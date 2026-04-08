@@ -49,6 +49,28 @@
 }
 
 :root {
+  --ui-bg: #f7f7fc;
+  --ui-bg-soft: #fcfbff;
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #f1f2fb;
+  --ui-surface-strong: #e3e6f8;
+  --ui-border-soft: #e7e8f4;
+  --ui-border: #d7daef;
+  --ui-border-strong: #b7bce3;
+  --ui-text: #2c3150;
+  --ui-text-soft: #5c6488;
+  --ui-text-faint: #8f97bb;
+  --ui-accent: #7b83da;
+  --ui-accent-strong: #5f68d2;
+  --ui-ambient-1: rgba(190, 194, 236, 0.22);
+  --ui-ambient-2: rgba(223, 226, 247, 0.26);
+  --ui-ambient-3: rgba(210, 214, 242, 0.18);
+  --ui-backdrop: rgba(31, 36, 69, 0.24);
+  --ui-overlay-solid: rgba(247, 247, 252, 0.98);
+  --ui-overlay-soft: rgba(247, 247, 252, 0.9);
+  --ui-scrollbar-thumb: rgba(148, 155, 214, 0.34);
+  --ui-scrollbar-thumb-hover: rgba(114, 124, 201, 0.52);
+  --ui-shadow: rgba(94, 103, 177, 0.12);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -84,6 +106,28 @@
 }
 
 .dark {
+  --ui-bg: #1d2230;
+  --ui-bg-soft: #242a3a;
+  --ui-surface: #2a3142;
+  --ui-surface-muted: #31394d;
+  --ui-surface-strong: #414b67;
+  --ui-border-soft: #3b4460;
+  --ui-border: #4b5676;
+  --ui-border-strong: #6e7ea8;
+  --ui-text: #e7ecfb;
+  --ui-text-soft: #bbc6e5;
+  --ui-text-faint: #909dc0;
+  --ui-accent: #98a5f2;
+  --ui-accent-strong: #b3bdfa;
+  --ui-ambient-1: rgba(103, 116, 191, 0.2);
+  --ui-ambient-2: rgba(74, 85, 140, 0.22);
+  --ui-ambient-3: rgba(54, 62, 102, 0.18);
+  --ui-backdrop: rgba(8, 10, 18, 0.6);
+  --ui-overlay-solid: rgba(29, 34, 48, 0.98);
+  --ui-overlay-soft: rgba(29, 34, 48, 0.9);
+  --ui-scrollbar-thumb: rgba(131, 145, 224, 0.42);
+  --ui-scrollbar-thumb-hover: rgba(164, 176, 245, 0.62);
+  --ui-shadow: rgba(0, 0, 0, 0.36);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -132,7 +176,7 @@
 .chat-scrollbar {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: rgba(191, 168, 159, 0.34) transparent;
+  scrollbar-color: var(--ui-scrollbar-thumb) transparent;
 }
 
 .chat-scrollbar::-webkit-scrollbar {
@@ -145,17 +189,9 @@
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background: linear-gradient(
-    180deg,
-    rgba(198, 175, 166, 0.42),
-    rgba(182, 158, 149, 0.28)
-  );
+  background: var(--ui-scrollbar-thumb);
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    180deg,
-    rgba(190, 166, 157, 0.56),
-    rgba(174, 149, 140, 0.4)
-  );
+  background: var(--ui-scrollbar-thumb-hover);
 }
