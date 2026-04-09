@@ -67,22 +67,78 @@ function truncateConversationTitle(title: string): string {
 }
 
 /**
+ * 将数据库中的工具调用摘要转换为 UIMessage parts。
+ */
+function toToolParts(toolCalls: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+
+  return toolCalls.flatMap((toolCall) => {
+    if (!toolCall || typeof toolCall !== "object" || Array.isArray(toolCall)) {
+      return [];
+    }
+
+    const item = toolCall as {
+      toolCallId?: string;
+      toolName?: string;
+      status?: string;
+      inputSummary?: string;
+      outputSummary?: string;
+      errorText?: string;
+    };
+
+    if (!item.toolCallId || !item.toolName) {
+      return [];
+    }
+
+    if (item.status === "success") {
+      return [
+        {
+          type: "dynamic-tool" as const,
+          toolCallId: item.toolCallId,
+          toolName: item.toolName,
+          state: "output-available" as const,
+          input: item.inputSummary ?? "",
+          output: item.outputSummary ?? "",
+        },
+      ];
+    }
+
+    return [
+      {
+        type: "dynamic-tool" as const,
+        toolCallId: item.toolCallId,
+        toolName: item.toolName,
+        state: "output-error" as const,
+        input: item.inputSummary ?? "",
+        errorText: item.errorText ?? "Tool call failed",
+      },
+    ];
+  });
+}
+
+/**
  * 将数据库消息转换为前端 UIMessage。
  */
 function toUIMessage(message: {
   id: string;
   role: PersistedMessageRole;
   content: string;
+  toolCalls?: Prisma.JsonValue | null;
 }): UIMessage {
+  const textPart = {
+    type: "text" as const,
+    text: message.content,
+  };
+
   return {
     id: message.id,
     role: message.role === "USER" ? "user" : "assistant",
-    parts: [
-      {
-        type: "text",
-        text: message.content,
-      },
-    ],
+    parts:
+      message.role === "USER"
+        ? [textPart]
+        : [...toToolParts(message.toolCalls), textPart],
   };
 }
 

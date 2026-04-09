@@ -1,4 +1,11 @@
 import { toBaseMessages, toUIMessageStream } from "@ai-sdk/langchain";
+import {
+  AIMessage,
+  AIMessageChunk,
+  HumanMessage,
+  ToolMessage,
+  type BaseMessage,
+} from "@langchain/core/messages";
 import { createUIMessageStreamResponse, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -42,6 +49,104 @@ function getMessageText(message: UIMessage | undefined): string {
  */
 function getConversationTitle(content: string): string {
   return content.length > 80 ? `${content.slice(0, 80)}...` : content;
+}
+/**
+ * 工具摘要提取
+ */
+function getToolCallsFromFinalState(finalState: unknown) {
+  if (!finalState || typeof finalState !== "object") {
+    return undefined;
+  }
+
+  const state = finalState as {
+    messages?: BaseMessage[];
+  };
+
+  if (!Array.isArray(state.messages)) {
+    return undefined;
+  }
+
+  //先找到 finalState.messages 里最后一条用户消息
+  //只看这条用户消息之后的消息，作为“当前轮次”
+  //在这段当前轮次里：
+  //收集所有 AIMessage / AIMessageChunk 上的 tool_calls
+  //收集所有 invalid_tool_calls
+  //用 toolCallId 去匹配对应的 ToolMessage
+  //最终把这一整轮里多批工具调用都合并成 tool_calls 摘要
+  const lastHumanMessageIndex = [...state.messages]
+    .map((message, index) => ({ message, index }))
+    .reverse()
+    .find(({ message }) => HumanMessage.isInstance(message))?.index;
+
+  const currentTurnMessages =
+    lastHumanMessageIndex === undefined
+      ? state.messages
+      : state.messages.slice(lastHumanMessageIndex + 1);
+
+  const toolMessages = currentTurnMessages.filter((message) =>
+    ToolMessage.isInstance(message)
+  ) as ToolMessage[];
+
+  const toolCallMessages = currentTurnMessages.filter((message) => {
+    if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
+      return (
+        (message.tool_calls?.length ?? 0) > 0 ||
+        (message.invalid_tool_calls?.length ?? 0) > 0
+      );
+    }
+
+    return false;
+  }) as Array<AIMessage | AIMessageChunk>;
+
+  if (toolCallMessages.length === 0) {
+    return undefined;
+  }
+
+  const validToolCalls = toolCallMessages.flatMap((message) =>
+    (message.tool_calls ?? []).map((toolCall) => {
+      const matchedToolMessage = toolMessages.find(
+        (toolMessage) => toolMessage.tool_call_id === toolCall.id
+      );
+
+      if (!matchedToolMessage) {
+        return {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          status: "error",
+          inputSummary: JSON.stringify(toolCall.args ?? {}),
+          errorText: "Tool output message was not found in final state.",
+        };
+      }
+
+      return {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        status: "success",
+        inputSummary: JSON.stringify(toolCall.args ?? {}),
+        outputSummary:
+          typeof matchedToolMessage.content === "string"
+            ? matchedToolMessage.content
+            : JSON.stringify(matchedToolMessage.content),
+      };
+    })
+  );
+
+  const invalidToolCalls = toolCallMessages.flatMap((message) =>
+    (message.invalid_tool_calls ?? []).map((toolCall) => ({
+      toolCallId: toolCall.id ?? "",
+      toolName: toolCall.name ?? "",
+      status: "error",
+      inputSummary: JSON.stringify(toolCall.args ?? {}),
+      errorText:
+        typeof toolCall.error === "string"
+          ? toolCall.error
+          : String(toolCall.error ?? "Invalid tool call"),
+    }))
+  );
+
+  const toolCalls = [...validToolCalls, ...invalidToolCalls];
+
+  return toolCalls.length > 0 ? toolCalls : undefined;
 }
 
 /**
@@ -138,20 +243,41 @@ export async function POST(request: Request) {
     );
 
     let didAbort = false;
+    let finalGraphState: unknown;
+    let finalCompletion = "";
+    let didPersistAssistantMessage = false;
+
+    async function persistAssistantMessageIfReady() {
+      if (
+        didAbort ||
+        didPersistAssistantMessage ||
+        !activeConversationId ||
+        !finalCompletion.trim() ||
+        finalGraphState === undefined
+      ) {
+        return;
+      }
+
+      didPersistAssistantMessage = true;
+
+      await appendChatMessage({
+        conversationId: activeConversationId,
+        role: "ASSISTANT",
+        content: finalCompletion,
+        toolCalls: getToolCallsFromFinalState(finalGraphState),
+      });
+      await touchChat(activeConversationId);
+    }
 
     return createUIMessageStreamResponse({
       stream: toUIMessageStream(stream, {
         async onFinal(completion) {
-          if (didAbort || !completion.trim()) {
-            return;
-          }
-
-          await appendChatMessage({
-            conversationId: activeConversationId,
-            role: "ASSISTANT",
-            content: completion,
-          });
-          await touchChat(activeConversationId);
+          finalCompletion = completion;
+          await persistAssistantMessageIfReady();
+        },
+        async onFinish(finalState) {
+          finalGraphState = finalState;
+          await persistAssistantMessageIfReady();
         },
         onAbort() {
           didAbort = true;

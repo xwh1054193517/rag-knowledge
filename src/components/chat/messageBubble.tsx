@@ -3,8 +3,9 @@
 import { memo } from "react";
 import { motion } from "framer-motion";
 import type { UIMessage } from "ai";
-import { Bot, PencilLine, RotateCcw, UserRound } from "lucide-react";
+import { Bot, Brain, PencilLine, RotateCcw, UserRound } from "lucide-react";
 
+import ToolBubble from "@/components/chat/tool-bubble";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -26,22 +27,230 @@ interface MessageBubbleProps {
   onStartEdit?: () => void;
 }
 
+interface NormalizedReasoningPart {
+  key: string;
+  text: string;
+  isStreaming: boolean;
+}
+
+interface NormalizedToolPart {
+  key: string;
+  toolCallId: string;
+  title: string;
+  status: "running" | "success" | "error";
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+}
+
+/**
+ * 提取消息中的 reasoning 片段。
+ */
+function getReasoningParts(message: UIMessage): NormalizedReasoningPart[] {
+  return message.parts.flatMap((part, index) => {
+    if (part.type !== "reasoning" || part.text.trim().length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        key: `${message.id}-reasoning-${index}`,
+        text: part.text,
+        isStreaming: part.state === "streaming",
+      },
+    ];
+  });
+}
+
+/**
+ * 将不同形态的工具消息片段统一整理为可渲染结构。
+ */
+function getToolParts(message: UIMessage): NormalizedToolPart[] {
+  const normalizedParts = message.parts.flatMap((part, index) => {
+    if (part.type === "tool-call") {
+      return [
+        {
+          key: `${message.id}-tool-call-${part.toolCallId}-${index}`,
+          toolCallId: part.toolCallId,
+          title: part.toolName,
+          status: "running",
+          input: part.input,
+        },
+      ];
+    }
+
+    if (part.type === "tool-result") {
+      return [
+        {
+          key: `${message.id}-tool-result-${part.toolCallId}-${index}`,
+          toolCallId: part.toolCallId,
+          title: part.toolName,
+          status: "success",
+          input: part.input,
+          output: part.output,
+        },
+      ];
+    }
+
+    if (part.type === "tool-error") {
+      return [
+        {
+          key: `${message.id}-tool-error-${part.toolCallId}-${index}`,
+          toolCallId: part.toolCallId,
+          title: part.toolName,
+          status: "error",
+          input: part.input,
+          errorText: getToolContentText(part.error),
+        },
+      ];
+    }
+
+    if (part.type === "dynamic-tool") {
+      if (part.state === "output-available") {
+        return [
+          {
+            key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
+            toolCallId: part.toolCallId,
+            title: part.toolName,
+            status: "success",
+            input: part.input,
+            output: part.output,
+          },
+        ];
+      }
+
+      if (part.state === "output-error") {
+        return [
+          {
+            key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
+            toolCallId: part.toolCallId,
+            title: part.toolName,
+            status: "error",
+            input: part.input,
+            errorText: part.errorText,
+          },
+        ];
+      }
+
+      return [
+        {
+          key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
+          toolCallId: part.toolCallId,
+          title: part.toolName,
+          status: "running",
+          input: part.input,
+        },
+      ];
+    }
+
+    if (part.type.startsWith("tool-")) {
+      const toolName = part.type.slice(5);
+      const toolPart = part as {
+        toolCallId?: string;
+        state?: string;
+        input?: unknown;
+        output?: unknown;
+        errorText?: string;
+      };
+
+      if (toolPart.state === "output-available") {
+        return [
+          {
+            key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
+            toolCallId: toolPart.toolCallId ?? `${index}`,
+            title: toolName,
+            status: "success",
+            input: toolPart.input,
+            output: toolPart.output,
+          },
+        ];
+      }
+
+      if (toolPart.state === "output-error") {
+        return [
+          {
+            key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
+            toolCallId: toolPart.toolCallId ?? `${index}`,
+            title: toolName,
+            status: "error",
+            input: toolPart.input,
+            errorText: toolPart.errorText,
+          },
+        ];
+      }
+
+      return [
+        {
+          key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
+          toolCallId: toolPart.toolCallId ?? `${index}`,
+          title: toolName,
+          status: "running",
+          input: toolPart.input,
+        },
+      ];
+    }
+
+    return [];
+  });
+
+  const toolPartsByCallId = new Map<string, NormalizedToolPart>();
+  const statusPriority = {
+    running: 1,
+    success: 2,
+    error: 3,
+  } as const;
+
+  for (const part of normalizedParts) {
+    const existingPart = toolPartsByCallId.get(part.toolCallId);
+
+    if (!existingPart) {
+      toolPartsByCallId.set(part.toolCallId, part);
+      continue;
+    }
+
+    const nextPart =
+      statusPriority[part.status] >= statusPriority[existingPart.status]
+        ? {
+            ...existingPart,
+            ...part,
+            input: part.input ?? existingPart.input,
+            output: part.output ?? existingPart.output,
+            errorText: part.errorText ?? existingPart.errorText,
+          }
+        : {
+            ...part,
+            ...existingPart,
+            input: existingPart.input ?? part.input,
+            output: existingPart.output ?? part.output,
+            errorText: existingPart.errorText ?? part.errorText,
+          };
+
+    toolPartsByCallId.set(part.toolCallId, nextPart);
+  }
+
+  return [...toolPartsByCallId.values()];
+}
+
+/**
+ * 将工具输入输出统一格式化为字符串。
+ */
+function getToolContentText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value ?? "");
+  }
+}
 /**
  * 提取消息中的纯文本内容。
  */
 function getMessageText(message: UIMessage): string {
   return message.parts
     .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("");
-}
-
-/**
- * 提取消息中的推理内容。
- */
-function getReasoningText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === "reasoning")
     .map((part) => part.text)
     .join("");
 }
@@ -136,9 +345,15 @@ function MessageBubble({
 
   const isUserMessage = message.role === "user";
   const messageText = getMessageText(message);
-  const reasoningText = getReasoningText(message);
+  const reasoningParts = getReasoningParts(message);
+  const toolParts = getToolParts(message);
 
-  if (!messageText && !reasoningText && !isEditing) {
+  if (
+    !messageText &&
+    reasoningParts.length === 0 &&
+    toolParts.length === 0 &&
+    !isEditing
+  ) {
     return null;
   }
 
@@ -161,11 +376,46 @@ function MessageBubble({
           isUserMessage ? "items-end" : "items-start"
         )}
       >
-        {reasoningText ? (
-          <div className="rounded-2xl border border-[var(--ui-border-soft)] bg-[color:rgba(255,255,255,0.38)] px-4 py-3 text-sm leading-6 text-[var(--ui-text-muted)] shadow-[0_12px_24px_var(--ui-shadow)] dark:bg-[color:rgba(255,255,255,0.03)]">
-            {reasoningText}
-          </div>
-        ) : null}
+        {!isUserMessage
+          ? reasoningParts.map((part) => (
+              <div
+                key={part.key}
+                className="rounded-2xl border border-[var(--ui-border-soft)] bg-[color:rgba(255,255,255,0.38)] px-4 py-3 text-sm leading-6 text-[var(--ui-text-muted)] shadow-[0_12px_24px_var(--ui-shadow)] dark:bg-[color:rgba(255,255,255,0.03)]"
+              >
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--ui-text-faint)]">
+                  <Brain className="size-3.5" />
+                  <span>Reasoning</span>
+                  {part.isStreaming ? (
+                    <motion.span
+                      animate={{ opacity: [0.35, 1, 0.35] }}
+                      transition={{
+                        duration: 1,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                      }}
+                      className="rounded-full border border-[var(--ui-border-soft)] px-2 py-0.5 text-[10px] tracking-[0.12em] text-[var(--ui-accent-strong)]"
+                    >
+                      streaming
+                    </motion.span>
+                  ) : null}
+                </div>
+                <p className="whitespace-pre-wrap break-words">{part.text}</p>
+              </div>
+            ))
+          : null}
+
+        {!isUserMessage
+          ? toolParts.map((part) => (
+              <ToolBubble
+                key={part.key}
+                title={part.title}
+                status={part.status}
+                input={getToolContentText(part.input)}
+                output={getToolContentText(part.output)}
+                errorText={part.errorText}
+              />
+            ))
+          : null}
 
         {isEditing ? (
           <div className="min-w-[min(50ch,50vw)] rounded-[1.5rem] border border-[var(--ui-border)] p-3 shadow-[0_16px_34px_var(--ui-shadow)]">

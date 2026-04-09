@@ -32,7 +32,7 @@ interface ConversationDetailResponse {
 }
 
 // 超时时间
-const CHAT_TIMEOUT_MS = 120_000;
+const CHAT_TIMEOUT_MS = 360_000;
 
 // 会话查询limit
 const PAGE_SIZE = 12;
@@ -97,6 +97,22 @@ function getUIMessageText(message: UIMessage): string {
 }
 
 /**
+ * 创建本地超时提示消息。
+ */
+function createTimeoutNotice(): UIMessage {
+  return {
+    id: `timeout-${Date.now()}`,
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: "本次回答超过 120 秒仍未完成，已自动停止。你可以缩小问题范围后重试，或者重新发起一次对话。",
+      },
+    ],
+  } as UIMessage;
+}
+
+/**
  * 用新内容覆盖最后一条用户消息，并删除它之后的消息。
  */
 function replaceLastUserMessage(
@@ -139,62 +155,6 @@ function replaceLastUserMessage(
 }
 
 /**
- * 提取消息片段中的文本内容，仅处理 text 和 reasoning 类型。
- */
-function getMessagePartText(part: UIMessage["parts"][number]): string | null {
-  if (part.type === "text" || part.type === "reasoning") {
-    return part.text;
-  }
-
-  return null;
-}
-
-/**
- * 判断两份消息快照在渲染层是否等价，避免重复 setState 触发循环更新。
- */
-function areMessagesEquivalent(
-  currentMessages: UIMessage[],
-  nextMessages: UIMessage[]
-): boolean {
-  if (currentMessages === nextMessages) {
-    return true;
-  }
-
-  if (currentMessages.length !== nextMessages.length) {
-    return false;
-  }
-
-  return currentMessages.every((message, index) => {
-    const nextMessage = nextMessages[index];
-
-    if (
-      message.id !== nextMessage.id ||
-      message.role !== nextMessage.role ||
-      message.parts.length !== nextMessage.parts.length
-    ) {
-      return false;
-    }
-
-    return message.parts.every((part, partIndex) => {
-      const nextPart = nextMessage.parts[partIndex];
-
-      if (part.type !== nextPart.type) {
-        return false;
-      }
-
-      const currentText = getMessagePartText(part);
-      const nextText = getMessagePartText(nextPart);
-
-      if (currentText !== null || nextText !== null) {
-        return currentText === nextText;
-      }
-
-      return true;
-    });
-  });
-}
-
-/**
  * 聊天工作区外壳。
  */
 export default function ChatShell({ userEmail }: ChatShellProps) {
@@ -234,14 +194,23 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   const timeoutRef = useRef<number | null>(null);
   const activeConversationIdRef = useRef(activeConversationId);
   const detailRequestIdRef = useRef(0);
+  const setMessagesRef = useRef<((messages: UIMessage[]) => void) | null>(null);
   const pendingRequestConversationIdRef = useRef<string | null>(null);
   const pendingRequestModeRef = useRef<"create" | "rerun-last-user" | null>(
     null
   );
   const streamOwnerConversationIdRef = useRef<string | null>(null);
+  const didTimeoutRef = useRef(false);
 
   const didInitializeRef = useRef(false);
   const previousHydratingRef = useRef(isConversationHydrating);
+  const loadConversationDetailRef = useRef<
+    | ((
+        conversationId: string,
+        options?: { showLoading?: boolean }
+      ) => Promise<void>)
+    | null
+  >(null);
 
   const [conversationTotal, setConversationTotal] = useState(0);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -254,21 +223,34 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     null
   );
   const [isOptimisticThinking, setIsOptimisticThinking] = useState(false);
-
-  const { messages, regenerate, sendMessage, setMessages, status, stop } =
-    useChat({
-      transport: new DefaultChatTransport({
+  const chatTransport = useMemo(
+    () =>
+      new DefaultChatTransport({
         api: "/api/runChat",
         credentials: "include",
       }),
+    []
+  );
+
+  const { messages, regenerate, sendMessage, setMessages, status, stop } =
+    useChat({
+      transport: chatTransport,
     });
   const previousStatusRef = useRef(status);
+  const isStreamingForActiveConversation =
+    !isConversationHydrating &&
+    (!streamOwnerConversationIdRef.current ||
+      streamOwnerConversationIdRef.current === activeConversationId);
+  const visibleConversationMessages =
+    isStreamingForActiveConversation && messages.length > 0
+      ? messages
+      : conversationMessages;
 
   const hasMoreConversations = nextCursor !== null;
   const displayMessages = useMemo(() => {
     const baseMessages =
-      conversationMessages.length > 0
-        ? conversationMessages
+      visibleConversationMessages.length > 0
+        ? visibleConversationMessages
         : activeConversationId
           ? []
           : initialMessages;
@@ -283,20 +265,20 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
       : mergedMessages;
   }, [
     activeConversationId,
-    conversationMessages,
+    visibleConversationMessages,
     optimisticMessage,
     timeoutMessage,
   ]);
   const isSending = status === "submitted" || status === "streaming";
   //只有在发送中且用户没有点停止时，发送按钮才显示扩散波纹。
   const showSendingRipple = isSending && !isStopPending;
-  const lastMessage = conversationMessages.at(-1);
+  const lastMessage = visibleConversationMessages.at(-1);
   const lastUserMessage = useMemo(
     () =>
-      [...conversationMessages]
+      [...visibleConversationMessages]
         .reverse()
         .find((message) => message.role === "user"),
-    [conversationMessages]
+    [visibleConversationMessages]
   );
   const isActionDisabled = isSending || isConversationHydrating;
 
@@ -313,10 +295,19 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
    * 拉取单个会话详情。
    */
   const loadConversationDetail = useCallback(
-    async (conversationId: string) => {
+    async (
+      conversationId: string,
+      options?: {
+        showLoading?: boolean;
+      }
+    ) => {
+      const shouldShowLoading = options?.showLoading ?? true;
+
       // 先让消息区进入切换 loading
       const requestId = ++detailRequestIdRef.current;
-      setIsConversationHydrating(true);
+      if (shouldShowLoading) {
+        setIsConversationHydrating(true);
+      }
 
       try {
         const response = await fetch(`/api/chats/${conversationId}`, {
@@ -333,7 +324,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
           return;
         }
 
-        setMessages(data.messages);
+        setMessagesRef.current?.(data.messages);
         setConversationMessages(data.messages);
         setTimeoutMessage(null);
       } catch (error) {
@@ -342,15 +333,15 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
         }
 
         console.error(error);
-        setMessages([]);
+        setMessagesRef.current?.([]);
         setConversationMessages([]);
       } finally {
-        if (requestId === detailRequestIdRef.current) {
+        if (requestId === detailRequestIdRef.current && shouldShowLoading) {
           setIsConversationHydrating(false);
         }
       }
     },
-    [setMessages]
+    []
   );
 
   /**
@@ -436,25 +427,12 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   }, [activeConversationId]);
 
   useEffect(() => {
-    const streamOwnerConversationId = streamOwnerConversationIdRef.current;
+    setMessagesRef.current = setMessages;
+  }, [setMessages]);
 
-    if (
-      streamOwnerConversationId &&
-      streamOwnerConversationId !== activeConversationId
-    ) {
-      return;
-    }
-
-    if (isConversationHydrating) {
-      return;
-    }
-
-    setConversationMessages((currentMessages) =>
-      areMessagesEquivalent(currentMessages, messages)
-        ? currentMessages
-        : messages
-    );
-  }, [activeConversationId, isConversationHydrating, messages]);
+  useEffect(() => {
+    loadConversationDetailRef.current = loadConversationDetail;
+  }, [loadConversationDetail]);
 
   useEffect(() => {
     setEditingMessageId(null);
@@ -494,16 +472,36 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     }
 
     if (status === "ready") {
+      const didTimeout = didTimeoutRef.current;
+      const pendingConversationId = pendingRequestConversationIdRef.current;
+
       setIsOptimisticThinking(false);
       setFailedRequestConversationId(null);
       streamOwnerConversationIdRef.current = null;
       pendingRequestConversationIdRef.current = null;
       pendingRequestModeRef.current = null;
+      didTimeoutRef.current = false;
+
+      if (didTimeout && pendingConversationId) {
+        const timeoutNotice = createTimeoutNotice();
+
+        void loadConversationDetailRef
+          .current?.(pendingConversationId, {
+            showLoading: false,
+          })
+          .then(() => {
+            setTimeoutMessage(timeoutNotice);
+          });
+      }
     }
-  }, [status]);
+  }, [loadConversationDetail, status]);
 
   useEffect(() => {
     if (status !== "error" || !pendingRequestConversationIdRef.current) {
+      return;
+    }
+
+    if (didTimeoutRef.current) {
       return;
     }
 
@@ -514,8 +512,10 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     setFailedRequestConversationId(failedConversationId);
     streamOwnerConversationIdRef.current = null;
 
-    if (failedMode === "create") {
-      void loadConversationDetail(failedConversationId);
+    if (failedMode === "create" || failedMode === "rerun-last-user") {
+      void loadConversationDetailRef.current?.(failedConversationId, {
+        showLoading: false,
+      });
     }
   }, [loadConversationDetail, status]);
 
@@ -594,17 +594,10 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     }
 
     timeoutRef.current = window.setTimeout(() => {
+      didTimeoutRef.current = true;
+      setFailedRequestConversationId(null);
       stop();
-      setTimeoutMessage({
-        id: `timeout-${Date.now()}`,
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "本次回答超过 120 秒仍未完成，已自动停止。你可以缩小问题范围后重试，或者重新发起一次对话。",
-          },
-        ],
-      } as UIMessage);
+      setTimeoutMessage(createTimeoutNotice());
     }, CHAT_TIMEOUT_MS);
 
     return () => {
@@ -768,6 +761,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     } as UIMessage;
 
     setIsStopPending(false);
+    didTimeoutRef.current = false;
     setTimeoutMessage(null);
     setSendingCycle((current) => current + 1);
     setOptimisticMessage(optimisticUserMessage);
@@ -799,7 +793,9 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
       setIsOptimisticThinking(false);
       setInputValue(trimmedValue);
       if (resolvedConversationId) {
-        await loadConversationDetail(resolvedConversationId);
+        await loadConversationDetail(resolvedConversationId, {
+          showLoading: false,
+        });
         setFailedRequestConversationId(resolvedConversationId);
       }
       throw error;
@@ -827,6 +823,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     setFailedRequestConversationId(null);
     setEditingMessageId(null);
     setEditingValue("");
+    didTimeoutRef.current = false;
     setTimeoutMessage(null);
     setSendingCycle((current) => current + 1);
     setIsStopPending(false);
@@ -899,6 +896,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     setFailedRequestConversationId(null);
     setEditingMessageId(null);
     setEditingValue("");
+    didTimeoutRef.current = false;
     setTimeoutMessage(null);
     setSendingCycle((current) => current + 1);
     setIsStopPending(false);
