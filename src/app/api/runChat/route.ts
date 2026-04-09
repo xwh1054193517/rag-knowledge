@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     const requestMode = mode ?? "create";
-    let activeConversationId = conversationId;
+    let activeConversationId: string | null = conversationId ?? null;
 
     if (requestMode === "create") {
       activeConversationId = await getOrCreateUserChat(
@@ -117,6 +117,13 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
+    }
+
+    if (!activeConversationId) {
+      return NextResponse.json(
+        { error: "Conversation id is required." },
+        { status: 400 }
+      );
     }
 
     const agentExecutor = createAgentExecutor(user.id);
