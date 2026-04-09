@@ -15,7 +15,7 @@ npx prisma generate                              # 重新生成 Prisma Client
 
 - **框架**: Next.js 16 (App Router) + React 19
 - **样式**: Tailwind CSS 4 + tailwind-merge + shadcn/ui
-- **AI**: LangChain.js (Agent/RAG) + Vercel AI SDK v3 (流式 UI)
+- **AI**: LangChain.js + Vercel AI SDK
 - **数据库**: Supabase PostgreSQL + pgvector + Prisma ORM
 - **认证**: Supabase Auth (邮箱密码 + Google OAuth)
 - **搜索**: Tavily Search API
@@ -25,7 +25,7 @@ npx prisma generate                              # 重新生成 Prisma Client
 
 ### 对话流程
 
-- 文本消息 → LangChain AgentExecutor (支持工具调用循环) → Vercel AI SDK 流式响应
+- 文本消息 → LangChain → Vercel AI SDK 流式响应
 
 ### 工具系统
 
@@ -72,19 +72,12 @@ npx prisma generate                              # 重新生成 Prisma Client
 ### 数据库 (Prisma)
 
 - 使用 `lib/prisma.ts` 导出的单例 `prisma`，不要自行实例化 `PrismaClient`
-- 表名使用 `@@map("snake_case")` 映射，模型名用 PascalCase
 
 ### TypeScript
 
 - 尽量避免 `any`，明确类型。对于 Vercel AI SDK 的 `annotations` 等弱类型场景，允许 `as any` 但应加注释说明
 - 函数/方法加 `/** JSDoc 注释 */` 说明用途
 - 环境变量通过 `process.env.XXX` 读取，带 `NEXT_PUBLIC_` 前缀的可在客户端使用，其余仅服务端可用
-
-### Git 提交
-
-- 提交信息格式：`type: 简短描述`
-- type 可选：`feat` / `fix` / `chore` / `docs` / `refactor` / `style`
-- 示例：`feat: 图片理解支持拖拽上传`、`fix: 知识库检索相似度阈值调整`
 
 ## 环境变量
 

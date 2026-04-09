@@ -2,10 +2,11 @@ import { toBaseMessages, toUIMessageStream } from "@ai-sdk/langchain";
 import { createUIMessageStreamResponse, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
+export const maxDuration = 60;
 import {
   appendChatMessage,
   getOrCreateUserChat,
+  rerunLastUserMessage,
   touchChat,
 } from "@/lib/chat-utils";
 import { createAgentExecutor } from "@/lib/aiAgent";
@@ -13,8 +14,13 @@ import { getCurrentLoginUser } from "@/lib/supabase-server";
 
 const runChatRequestSchema = z.object({
   conversationId: z.string().uuid().optional(),
+  mode: z.enum(["create", "rerun-last-user"]).optional(),
   messages: z.array(z.unknown()).min(1, "messages is required"),
 });
+
+/**
+ * 提取消息中的纯文本内容。
+ */
 
 /**
  * 提取消息中的纯文本内容。
@@ -57,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     const json = await request.json();
-    const { conversationId, messages } = runChatRequestSchema.parse(json);
+    const { conversationId, messages, mode } = runChatRequestSchema.parse(json);
     const uiMessages = messages as UIMessage[];
     const latestUserMessage = [...uiMessages]
       .reverse()
@@ -71,22 +77,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const activeConversationId = await getOrCreateUserChat(
-      user.id,
-      conversationId,
-      getConversationTitle(userMessageText)
-    );
+    const requestMode = mode ?? "create";
+    let activeConversationId = conversationId;
 
-    if (!activeConversationId) {
-      return NextResponse.json({ error: "Chat not found." }, { status: 404 });
+    if (requestMode === "create") {
+      activeConversationId = await getOrCreateUserChat(
+        user.id,
+        conversationId,
+        getConversationTitle(userMessageText)
+      );
+
+      if (!activeConversationId) {
+        return NextResponse.json({ error: "Chat not found." }, { status: 404 });
+      }
+
+      await appendChatMessage({
+        conversationId: activeConversationId,
+        role: "USER",
+        content: userMessageText,
+      });
+      await touchChat(activeConversationId);
+    } else {
+      if (!activeConversationId) {
+        return NextResponse.json(
+          { error: "Conversation id is required." },
+          { status: 400 }
+        );
+      }
+
+      const rerunResult = await rerunLastUserMessage({
+        userId: user.id,
+        conversationId: activeConversationId,
+        content: userMessageText,
+      });
+
+      if (!rerunResult) {
+        return NextResponse.json(
+          { error: "Last user message not found." },
+          { status: 404 }
+        );
+      }
     }
-
-    await appendChatMessage({
-      conversationId: activeConversationId,
-      role: "USER",
-      content: userMessageText,
-    });
-    await touchChat(activeConversationId);
 
     const agentExecutor = createAgentExecutor(user.id);
     const langchainMessages = await toBaseMessages(uiMessages);

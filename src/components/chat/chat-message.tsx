@@ -14,9 +14,19 @@ import type { UIMessage } from "ai";
 import MessageBubble from "@/components/chat/messageBubble";
 
 interface ChatMessageProps {
+  editingMessageId: string | null;
+  editingValue: string;
+  failureConversationId: string | null;
+  isActionDisabled: boolean;
   isLoadingConversation: boolean;
-  messages: UIMessage[];
   isThinking: boolean;
+  lastUserMessageId: string | null;
+  messages: UIMessage[];
+  onEditCancel: () => void;
+  onEditChange: (value: string) => void;
+  onEditSend: () => void;
+  onRetryLastUser: () => void;
+  onStartEdit: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   scrollEndRef: RefObject<HTMLDivElement | null>;
 }
@@ -25,9 +35,19 @@ interface ChatMessageProps {
  * 聊天记录区域。
  */
 export default function ChatMessage({
+  editingMessageId,
+  editingValue,
+  failureConversationId,
+  isActionDisabled,
   isLoadingConversation,
-  messages,
   isThinking,
+  lastUserMessageId,
+  messages,
+  onEditCancel,
+  onEditChange,
+  onEditSend,
+  onRetryLastUser,
+  onStartEdit,
   scrollContainerRef,
   scrollEndRef,
 }: ChatMessageProps) {
@@ -132,11 +152,29 @@ export default function ChatMessage({
         onScroll={handleScroll}
       >
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-1 py-1 sm:px-2">
-          {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+          {messages.map((message) => {
+            const isLastUserMessage = message.id === lastUserMessageId;
+
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                canEdit={isLastUserMessage}
+                canRetry={isLastUserMessage}
+                editingValue={editingValue}
+                isActionDisabled={isActionDisabled}
+                isEditing={editingMessageId === message.id}
+                onEditCancel={onEditCancel}
+                onEditChange={onEditChange}
+                onEditSend={onEditSend}
+                onRetry={onRetryLastUser}
+                onStartEdit={onStartEdit}
+              />
+            );
+          })}
 
           {isThinking ? <MessageBubble isThinking /> : null}
+          {failureConversationId ? <MessageBubble isFailure /> : null}
 
           <div ref={scrollEndRef} className="h-px w-full shrink-0" />
         </div>

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 interface ConversationListProps {
   activeConversationId: string;
   conversations: ConversationItem[];
+  conversationTotal: number;
   hasMore: boolean;
   isCollapsed: boolean;
   isLoadingMore: boolean;
@@ -49,6 +50,7 @@ export default function ConversationList({
   hasMore,
   isCollapsed,
   isLoadingMore,
+  conversationTotal,
   onCreateConversation,
   onDeleteConversation,
   onLoadMore,
@@ -198,7 +200,7 @@ export default function ConversationList({
         )}
       >
         {isCollapsed ? null : <span>Conversations</span>}
-        {!isCollapsed ? <span>{conversations.length}</span> : null}
+        {!isCollapsed ? <span>{conversationTotal}</span> : null}
       </div>
 
       <div className="relative min-h-0 flex-1">

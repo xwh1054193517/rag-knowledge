@@ -22,6 +22,7 @@ interface ChatShellProps {
 interface ConversationListResponse {
   items: ConversationItem[];
   nextCursor: string | null;
+  total: number;
 }
 
 interface ConversationDetailResponse {
@@ -30,7 +31,10 @@ interface ConversationDetailResponse {
   messages: UIMessage[];
 }
 
+// 超时时间
 const CHAT_TIMEOUT_MS = 120_000;
+
+// 会话查询limit
 const PAGE_SIZE = 12;
 
 const initialMessages: ChatMessageItem[] = [
@@ -82,62 +86,222 @@ function getConversationTitle(content: string): string {
 }
 
 /**
+ * 提取 UIMessage 中的纯文本内容。
+ */
+function getUIMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("")
+    .trim();
+}
+
+/**
+ * 用新内容覆盖最后一条用户消息，并删除它之后的消息。
+ */
+function replaceLastUserMessage(
+  currentMessages: UIMessage[],
+  content: string
+): { nextMessages: UIMessage[]; targetMessageId: string | null } {
+  const lastUserIndex = [...currentMessages]
+    .map((message, index) => ({ message, index }))
+    .reverse()
+    .find(({ message }) => message.role === "user")?.index;
+
+  if (lastUserIndex === undefined) {
+    return {
+      nextMessages: currentMessages,
+      targetMessageId: null,
+    };
+  }
+
+  const targetMessage = currentMessages[lastUserIndex];
+  const nextMessages = currentMessages
+    .slice(0, lastUserIndex + 1)
+    .map((message, index) =>
+      index === lastUserIndex
+        ? {
+            ...message,
+            parts: [
+              {
+                type: "text" as const,
+                text: content,
+              },
+            ],
+          }
+        : message
+    );
+
+  return {
+    nextMessages,
+    targetMessageId: targetMessage.id,
+  };
+}
+
+/**
+ * 判断两份消息快照在渲染层是否等价，避免重复 setState 触发循环更新。
+ */
+function areMessagesEquivalent(
+  currentMessages: UIMessage[],
+  nextMessages: UIMessage[]
+): boolean {
+  if (currentMessages === nextMessages) {
+    return true;
+  }
+
+  if (currentMessages.length !== nextMessages.length) {
+    return false;
+  }
+
+  return currentMessages.every((message, index) => {
+    const nextMessage = nextMessages[index];
+
+    if (
+      message.id !== nextMessage.id ||
+      message.role !== nextMessage.role ||
+      message.parts.length !== nextMessage.parts.length
+    ) {
+      return false;
+    }
+
+    return message.parts.every((part, partIndex) => {
+      const nextPart = nextMessage.parts[partIndex];
+
+      if (part.type !== nextPart.type) {
+        return false;
+      }
+
+      if (part.type === "text" || part.type === "reasoning") {
+        return part.text === nextPart.text;
+      }
+
+      return true;
+    });
+  });
+}
+
+/**
  * 聊天工作区外壳。
  */
 export default function ChatShell({ userEmail }: ChatShellProps) {
+  // 侧边栏收起状态
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // 侧边栏会话到底加载更多
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [inputValue, setInputValue] = useState("");
+
+  // 第几次会话 用于重置动画
   const [sendingCycle, setSendingCycle] = useState(0);
+
   const [isStopPending, setIsStopPending] = useState(false);
+
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState("");
+  const [conversationMessages, setConversationMessages] = useState<UIMessage[]>(
+    []
+  );
+
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [timeoutMessage, setTimeoutMessage] = useState<UIMessage | null>(null);
+
   const [isConversationHydrating, setIsConversationHydrating] = useState(true);
+
+  // 聊天区域滚动容器
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  // 聊天区域滚动底部锚点
   const chatScrollEndRef = useRef<HTMLDivElement | null>(null);
+
+  // 上一个对话 用于比对 执行滚到底部
   const previousConversationIdRef = useRef(activeConversationId);
   const previousMessageCountRef = useRef(0);
+
   const timeoutRef = useRef<number | null>(null);
   const activeConversationIdRef = useRef(activeConversationId);
+  const detailRequestIdRef = useRef(0);
+  const pendingRequestConversationIdRef = useRef<string | null>(null);
+  const pendingRequestModeRef = useRef<"create" | "rerun-last-user" | null>(
+    null
+  );
+  const streamOwnerConversationIdRef = useRef<string | null>(null);
+
   const didInitializeRef = useRef(false);
   const previousHydratingRef = useRef(isConversationHydrating);
 
-  const { messages, sendMessage, setMessages, status, stop } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/runChat",
-      credentials: "include",
-    }),
-  });
+  const [conversationTotal, setConversationTotal] = useState(0);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [failedRequestConversationId, setFailedRequestConversationId] =
+    useState<string | null>(null);
+
+  // 乐观thinking 不等接口
+  const [optimisticMessage, setOptimisticMessage] = useState<UIMessage | null>(
+    null
+  );
+  const [isOptimisticThinking, setIsOptimisticThinking] = useState(false);
+
+  const { messages, regenerate, sendMessage, setMessages, status, stop } =
+    useChat({
+      transport: new DefaultChatTransport({
+        api: "/api/runChat",
+        credentials: "include",
+      }),
+    });
   const previousStatusRef = useRef(status);
 
   const hasMoreConversations = nextCursor !== null;
   const displayMessages = useMemo(() => {
     const baseMessages =
-      messages.length > 0
-        ? messages
+      conversationMessages.length > 0
+        ? conversationMessages
         : activeConversationId
           ? []
           : initialMessages;
 
-    return timeoutMessage ? [...baseMessages, timeoutMessage] : baseMessages;
-  }, [activeConversationId, messages, timeoutMessage]);
+    //先把乐观消息加上
+    const mergedMessages = optimisticMessage
+      ? [...baseMessages, optimisticMessage]
+      : baseMessages;
+
+    return timeoutMessage
+      ? [...mergedMessages, timeoutMessage]
+      : mergedMessages;
+  }, [
+    activeConversationId,
+    conversationMessages,
+    optimisticMessage,
+    timeoutMessage,
+  ]);
   const isSending = status === "submitted" || status === "streaming";
+  //只有在发送中且用户没有点停止时，发送按钮才显示扩散波纹。
   const showSendingRipple = isSending && !isStopPending;
-  const lastMessage = messages.at(-1);
+  const lastMessage = conversationMessages.at(-1);
+  const lastUserMessage = useMemo(
+    () =>
+      [...conversationMessages]
+        .reverse()
+        .find((message) => message.role === "user"),
+    [conversationMessages]
+  );
+  const isActionDisabled = isSending || isConversationHydrating;
+
+  // 正在发送中并且最后一条消息还不是有内容的 assistant 回复
+  // 也就是 AI 已经开始工作，但还没真正吐出可展示文本时，就先显示思考占位。
   const showThinkingProcess =
-    isSending &&
-    (!lastMessage ||
-      lastMessage.role !== "assistant" ||
-      !hasRenderableContent(lastMessage));
+    isOptimisticThinking ||
+    (isSending &&
+      (!lastMessage ||
+        lastMessage.role !== "assistant" ||
+        !hasRenderableContent(lastMessage)));
 
   /**
    * 拉取单个会话详情。
    */
   const loadConversationDetail = useCallback(
     async (conversationId: string) => {
+      // 先让消息区进入切换 loading
+      const requestId = ++detailRequestIdRef.current;
       setIsConversationHydrating(true);
 
       try {
@@ -151,13 +315,25 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
 
         const data = (await response.json()) as ConversationDetailResponse;
 
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+
         setMessages(data.messages);
+        setConversationMessages(data.messages);
         setTimeoutMessage(null);
       } catch (error) {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+
         console.error(error);
         setMessages([]);
+        setConversationMessages([]);
       } finally {
-        setIsConversationHydrating(false);
+        if (requestId === detailRequestIdRef.current) {
+          setIsConversationHydrating(false);
+        }
       }
     },
     [setMessages]
@@ -201,7 +377,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
           reset ? data.items : [...current, ...data.items]
         );
         setNextCursor(data.nextCursor);
-
+        setConversationTotal(data.total);
         if (!reset) {
           return;
         }
@@ -213,12 +389,13 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
               conversation.id === activeConversationIdRef.current
           )
             ? activeConversationIdRef.current
-            : (data.items[0]?.id ?? "");
+            : "";
 
         setActiveConversationId(nextActiveId);
 
         if (!nextActiveId) {
           setMessages([]);
+          setConversationMessages([]);
           setIsConversationHydrating(false);
           return;
         }
@@ -245,6 +422,32 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   }, [activeConversationId]);
 
   useEffect(() => {
+    const streamOwnerConversationId = streamOwnerConversationIdRef.current;
+
+    if (
+      streamOwnerConversationId &&
+      streamOwnerConversationId !== activeConversationId
+    ) {
+      return;
+    }
+
+    if (isConversationHydrating) {
+      return;
+    }
+
+    setConversationMessages((currentMessages) =>
+      areMessagesEquivalent(currentMessages, messages)
+        ? currentMessages
+        : messages
+    );
+  }, [activeConversationId, isConversationHydrating, messages]);
+
+  useEffect(() => {
+    setEditingMessageId(null);
+    setEditingValue("");
+  }, [activeConversationId]);
+
+  useEffect(() => {
     if (didInitializeRef.current) {
       return;
     }
@@ -254,6 +457,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   }, [loadConversations]);
 
   useEffect(() => {
+    // 上条对话的状态
     const previousStatus = previousStatusRef.current;
     const didFinishResponse =
       (previousStatus === "submitted" || previousStatus === "streaming") &&
@@ -267,6 +471,39 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
 
     void loadConversations(true, false);
   }, [loadConversations, status]);
+
+  useEffect(() => {
+    if (status === "submitted" || status === "streaming") {
+      setOptimisticMessage(null);
+      setIsOptimisticThinking(false);
+      return;
+    }
+
+    if (status === "ready") {
+      setIsOptimisticThinking(false);
+      setFailedRequestConversationId(null);
+      streamOwnerConversationIdRef.current = null;
+      pendingRequestConversationIdRef.current = null;
+      pendingRequestModeRef.current = null;
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "error" || !pendingRequestConversationIdRef.current) {
+      return;
+    }
+
+    const failedConversationId = pendingRequestConversationIdRef.current;
+    const failedMode = pendingRequestModeRef.current;
+
+    setIsOptimisticThinking(false);
+    setFailedRequestConversationId(failedConversationId);
+    streamOwnerConversationIdRef.current = null;
+
+    if (failedMode === "create") {
+      void loadConversationDetail(failedConversationId);
+    }
+  }, [loadConversationDetail, status]);
 
   useEffect(() => {
     const scrollElement = chatScrollContainerRef.current;
@@ -285,7 +522,8 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
         scrollElement.scrollTop -
         scrollElement.clientHeight <
       96;
-
+    // 如果切换了会话，就平滑滚到底
+    // 如果消息条数变了，并且用户本来就在接近底部的位置，也自动滚到底
     if (isConversationChanged || (isMessageCountChanged && isNearBottom)) {
       scrollEndElement.scrollIntoView({
         block: "end",
@@ -330,6 +568,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     };
   }, [isMobileSidebarOpen]);
 
+  // 自动执行超时停止
   useEffect(() => {
     if (!isSending) {
       if (timeoutRef.current !== null) {
@@ -400,9 +639,22 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
    * 新建本地空白会话。
    */
   function handleCreateConversation() {
+    detailRequestIdRef.current += 1;
+
+    if (isSending) {
+      setIsStopPending(true);
+      stop();
+    }
+
     setActiveConversationId("");
     setMessages([]);
+    setConversationMessages([]);
     setTimeoutMessage(null);
+    setFailedRequestConversationId(null);
+    setEditingMessageId(null);
+    setEditingValue("");
+    setOptimisticMessage(null);
+    setIsOptimisticThinking(false);
     setIsMobileSidebarOpen(false);
     setIsConversationHydrating(false);
   }
@@ -430,13 +682,23 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
       return;
     }
 
+    detailRequestIdRef.current += 1;
+
+    if (isSending) {
+      setIsStopPending(true);
+      stop();
+    }
+
     const nextConversationId = nextConversations[0]?.id ?? "";
 
     setActiveConversationId(nextConversationId);
     if (nextConversationId) {
+      setMessages([]);
+      setConversationMessages([]);
       await loadConversationDetail(nextConversationId);
     } else {
       setMessages([]);
+      setConversationMessages([]);
       setTimeoutMessage(null);
     }
   }
@@ -450,6 +712,21 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
       return;
     }
 
+    detailRequestIdRef.current += 1;
+
+    if (isSending) {
+      setIsStopPending(true);
+      stop();
+    }
+
+    setEditingMessageId(null);
+    setEditingValue("");
+    setFailedRequestConversationId(null);
+    setOptimisticMessage(null);
+    setIsOptimisticThinking(false);
+    setMessages([]);
+    setConversationMessages([]);
+    setIsConversationHydrating(true);
     setActiveConversationId(conversationId);
     setIsMobileSidebarOpen(false);
     await loadConversationDetail(conversationId);
@@ -459,24 +736,178 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
    * 提交用户输入消息。
    */
   async function handleSendMessage(value: string) {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return;
+    }
+
+    const optimisticUserMessage = {
+      id: `optimistic-user-${Date.now()}`,
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: trimmedValue,
+        },
+      ],
+    } as UIMessage;
+
     setIsStopPending(false);
     setTimeoutMessage(null);
     setSendingCycle((current) => current + 1);
+    setOptimisticMessage(optimisticUserMessage);
+    setIsOptimisticThinking(true);
     setInputValue("");
+    let resolvedConversationId: string | null = activeConversationId || null;
 
-    const conversationId =
-      activeConversationId || (await createConversationRecord(value));
+    try {
+      resolvedConversationId =
+        activeConversationId || (await createConversationRecord(trimmedValue));
 
-    await sendMessage(
-      {
-        text: value,
-      },
-      {
-        body: {
-          conversationId,
+      setFailedRequestConversationId(null);
+      streamOwnerConversationIdRef.current = resolvedConversationId;
+      pendingRequestConversationIdRef.current = resolvedConversationId;
+      pendingRequestModeRef.current = "create";
+
+      await sendMessage(
+        {
+          text: trimmedValue,
         },
+        {
+          body: {
+            conversationId: resolvedConversationId,
+          },
+        }
+      );
+    } catch (error) {
+      setOptimisticMessage(null);
+      setIsOptimisticThinking(false);
+      setInputValue(trimmedValue);
+      if (resolvedConversationId) {
+        await loadConversationDetail(resolvedConversationId);
+        setFailedRequestConversationId(resolvedConversationId);
       }
+      throw error;
+    }
+  }
+
+  /**
+   * 对最后一条用户消息执行重新发送。
+   */
+  async function handleRetryLastUserMessage() {
+    if (!activeConversationId || !lastUserMessage || isActionDisabled) {
+      return;
+    }
+
+    const currentContent = getUIMessageText(lastUserMessage);
+    const { nextMessages, targetMessageId } = replaceLastUserMessage(
+      conversationMessages,
+      currentContent
     );
+
+    if (!targetMessageId) {
+      return;
+    }
+
+    setFailedRequestConversationId(null);
+    setEditingMessageId(null);
+    setEditingValue("");
+    setTimeoutMessage(null);
+    setSendingCycle((current) => current + 1);
+    setIsStopPending(false);
+    setIsOptimisticThinking(true);
+    setMessages(nextMessages);
+    setConversationMessages(nextMessages);
+    streamOwnerConversationIdRef.current = activeConversationId;
+    pendingRequestConversationIdRef.current = activeConversationId;
+    pendingRequestModeRef.current = "rerun-last-user";
+
+    try {
+      await regenerate({
+        messageId: targetMessageId,
+        body: {
+          conversationId: activeConversationId,
+          mode: "rerun-last-user",
+        },
+      });
+    } catch (error) {
+      setIsOptimisticThinking(false);
+      setFailedRequestConversationId(activeConversationId);
+      throw error;
+    }
+  }
+
+  /**
+   * 进入最后一条用户消息的编辑态。
+   */
+  function handleStartEditLastUserMessage() {
+    if (!lastUserMessage || isActionDisabled) {
+      return;
+    }
+
+    setEditingMessageId(lastUserMessage.id);
+    setEditingValue(getUIMessageText(lastUserMessage));
+  }
+
+  /**
+   * 取消编辑最后一条用户消息。
+   */
+  function handleCancelEditLastUserMessage() {
+    setEditingMessageId(null);
+    setEditingValue("");
+  }
+
+  /**
+   * 发送编辑后的最后一条用户消息。
+   */
+  async function handleSendEditedLastUserMessage() {
+    const trimmedValue = editingValue.trim();
+
+    if (
+      !activeConversationId ||
+      !lastUserMessage ||
+      !trimmedValue ||
+      isActionDisabled
+    ) {
+      return;
+    }
+
+    const { nextMessages, targetMessageId } = replaceLastUserMessage(
+      conversationMessages,
+      trimmedValue
+    );
+
+    if (!targetMessageId) {
+      return;
+    }
+
+    setFailedRequestConversationId(null);
+    setEditingMessageId(null);
+    setEditingValue("");
+    setTimeoutMessage(null);
+    setSendingCycle((current) => current + 1);
+    setIsStopPending(false);
+    setIsOptimisticThinking(true);
+    setMessages(nextMessages);
+    setConversationMessages(nextMessages);
+    streamOwnerConversationIdRef.current = activeConversationId;
+    pendingRequestConversationIdRef.current = activeConversationId;
+    pendingRequestModeRef.current = "rerun-last-user";
+
+    try {
+      await regenerate({
+        messageId: targetMessageId,
+        body: {
+          conversationId: activeConversationId,
+          mode: "rerun-last-user",
+        },
+      });
+    } catch (error) {
+      setIsOptimisticThinking(false);
+      setFailedRequestConversationId(activeConversationId);
+      throw error;
+    }
   }
 
   /**
@@ -509,6 +940,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_34%),radial-gradient(circle_at_bottom,var(--ui-ambient-2),transparent_28%)]" />
         <ChatSidebar
           activeConversationId={activeConversationId}
+          conversationTotal={conversationTotal}
           conversations={conversations}
           hasMore={hasMoreConversations}
           isCollapsed={isSidebarCollapsed}
@@ -543,6 +975,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,var(--ui-ambient-1),transparent_34%),radial-gradient(circle_at_bottom,var(--ui-ambient-2),transparent_28%)]" />
               <ChatSidebar
                 activeConversationId={activeConversationId}
+                conversationTotal={conversationTotal}
                 conversations={conversations}
                 hasMore={hasMoreConversations}
                 isCollapsed={false}
@@ -588,9 +1021,23 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
 
           <section className="grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden pb-4 pt-6">
             <ChatMessage
+              editingMessageId={editingMessageId}
+              editingValue={editingValue}
+              failureConversationId={
+                failedRequestConversationId === activeConversationId
+                  ? failedRequestConversationId
+                  : null
+              }
+              isActionDisabled={isActionDisabled}
               isLoadingConversation={isConversationHydrating}
               messages={isConversationHydrating ? [] : displayMessages}
               isThinking={showThinkingProcess}
+              lastUserMessageId={lastUserMessage?.id ?? null}
+              onEditCancel={handleCancelEditLastUserMessage}
+              onEditChange={setEditingValue}
+              onEditSend={handleSendEditedLastUserMessage}
+              onRetryLastUser={handleRetryLastUserMessage}
+              onStartEdit={handleStartEditLastUserMessage}
               scrollContainerRef={chatScrollContainerRef}
               scrollEndRef={chatScrollEndRef}
             />

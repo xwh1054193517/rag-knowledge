@@ -1,5 +1,3 @@
-# langchain.js
-
 # 数据库
 
 - prisma 的url写在prisma.config.ts

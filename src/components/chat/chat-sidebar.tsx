@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 interface ChatSidebarProps {
   activeConversationId: string;
   conversations: ConversationItem[];
+  conversationTotal: number;
   hasMore: boolean;
   isCollapsed: boolean;
   isLoadingMore: boolean;
@@ -32,6 +33,7 @@ export default function ChatSidebar({
   activeConversationId,
   conversations,
   hasMore,
+  conversationTotal,
   isCollapsed,
   isLoadingMore,
   onCloseMobile,
@@ -101,6 +103,7 @@ export default function ChatSidebar({
       <ConversationList
         activeConversationId={activeConversationId}
         conversations={conversations}
+        conversationTotal={conversationTotal}
         hasMore={hasMore}
         isCollapsed={isCollapsed}
         isLoadingMore={isLoadingMore}

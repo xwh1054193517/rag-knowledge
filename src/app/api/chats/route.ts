@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createUserChat, listUserChats } from "@/lib/chat-utils";
+import {
+  countUserChats,
+  createUserChat,
+  listUserChats,
+} from "@/lib/chat-utils";
 import { getCurrentLoginUser } from "@/lib/supabase-server";
 
 const listChatsQuerySchema = z.object({
@@ -33,11 +37,15 @@ export async function GET(request: Request) {
       cursor: searchParams.get("cursor") ?? undefined,
       limit: searchParams.get("limit") ?? undefined,
     });
-    const result = await listUserChats(user.id, { cursor, limit });
 
+    const [result, total] = await Promise.all([
+      listUserChats(user.id, { cursor, limit }),
+      countUserChats(user.id),
+    ]);
     return NextResponse.json({
       items: result.items,
       nextCursor: result.nextCursor,
+      total,
     });
   } catch (err: unknown) {
     const message =

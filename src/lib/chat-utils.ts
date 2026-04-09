@@ -14,6 +14,7 @@ interface ListUserChatsOptions {
 interface ListUserChatsResult {
   items: ConversationItem[];
   nextCursor: string | null;
+  total: number;
 }
 
 interface ChatDetailResult {
@@ -23,6 +24,12 @@ interface ChatDetailResult {
 }
 
 type PersistedMessageRole = "USER" | "ASSISTANT";
+
+interface PersistedUserMessageRecord {
+  id: string;
+  content: string;
+  createdAt: Date;
+}
 
 /**
  * 根据更新时间计算会话分组。
@@ -359,5 +366,105 @@ export async function touchChat(conversationId: string) {
     data: {
       updatedAt: new Date(),
     },
+  });
+}
+/**
+ * SQL:
+ * SELECT COUNT(*) FROM conversations WHERE user_id = $1;
+ *
+ * 业务解释:
+ * 获取当前用户的会话总数，用于侧边栏头部统计，不受分页 limit 影响。
+ */
+export async function countUserChats(userId: string): Promise<number> {
+  return prisma.conversation.count({
+    where: {
+      userId,
+    },
+  });
+}
+
+/**
+ * SQL:
+ * BEGIN;
+ * SELECT 最后一条 USER 消息;
+ * UPDATE 这条 USER 消息的 content;
+ * DELETE 这条 USER 消息之后的 ASSISTANT 消息;
+ * UPDATE conversations SET updated_at = NOW();
+ * COMMIT;
+ *
+ * 业务解释:
+ * 将“最后一条用户消息 + 其后的 assistant 回复”视为一个可替换单元。
+ * 重新发送或编辑重发时，统一走这个事务来保证数据一致性。
+ */
+export async function rerunLastUserMessage(options: {
+  userId: string;
+  conversationId: string;
+  content: string;
+}) {
+  const { userId, conversationId, content } = options;
+
+  return prisma.$transaction(async (tx) => {
+    const conversation = await tx.conversation.findFirst({
+      where: {
+        id: conversationId,
+        userId,
+      },
+      select: {
+        id: true,
+        messages: {
+          where: {
+            role: "USER",
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    const lastUserMessage = conversation?.messages[0];
+
+    if (!lastUserMessage) {
+      return null;
+    }
+
+    await tx.message.update({
+      where: {
+        id: lastUserMessage.id,
+      },
+      data: {
+        content,
+      },
+    });
+
+    await tx.message.deleteMany({
+      where: {
+        conversationId,
+        role: "ASSISTANT",
+        createdAt: {
+          gt: lastUserMessage.createdAt,
+        },
+      },
+    });
+
+    await tx.conversation.update({
+      where: {
+        id: conversationId,
+      },
+      data: {
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      id: lastUserMessage.id,
+      createdAt: lastUserMessage.createdAt,
+    };
   });
 }
