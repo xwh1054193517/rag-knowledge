@@ -139,6 +139,17 @@ function replaceLastUserMessage(
 }
 
 /**
+ * 提取消息片段中的文本内容，仅处理 text 和 reasoning 类型。
+ */
+function getMessagePartText(part: UIMessage["parts"][number]): string | null {
+  if (part.type === "text" || part.type === "reasoning") {
+    return part.text;
+  }
+
+  return null;
+}
+
+/**
  * 判断两份消息快照在渲染层是否等价，避免重复 setState 触发循环更新。
  */
 function areMessagesEquivalent(
@@ -171,8 +182,11 @@ function areMessagesEquivalent(
         return false;
       }
 
-      if (part.type === "text" || part.type === "reasoning") {
-        return part.text === nextPart.text;
+      const currentText = getMessagePartText(part);
+      const nextText = getMessagePartText(nextPart);
+
+      if (currentText !== null || nextText !== null) {
+        return currentText === nextText;
       }
 
       return true;

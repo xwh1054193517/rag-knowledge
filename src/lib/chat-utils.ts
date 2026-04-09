@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { Prisma } from "../generated/prisma/client";
 
 import type {
   ConversationDateGroup,
@@ -24,12 +25,6 @@ interface ChatDetailResult {
 }
 
 type PersistedMessageRole = "USER" | "ASSISTANT";
-
-interface PersistedUserMessageRecord {
-  id: string;
-  content: string;
-  createdAt: Date;
-}
 
 /**
  * 根据更新时间计算会话分组。
@@ -153,6 +148,7 @@ export async function listUserChats(
       updatedAt: formatConversationUpdatedAt(conversation.updatedAt),
     })),
     nextCursor: hasMore ? (conversations[limit]?.id ?? null) : null,
+    total: await countUserChats(userId),
   };
 }
 
@@ -333,7 +329,7 @@ export async function appendChatMessage(options: {
   conversationId: string;
   role: PersistedMessageRole;
   content: string;
-  toolCalls?: unknown;
+  toolCalls?: Prisma.InputJsonValue;
 }) {
   const { conversationId, role, content, toolCalls } = options;
 

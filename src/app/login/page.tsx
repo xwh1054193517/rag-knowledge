@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import {
   Bot,
   BrainCircuit,
@@ -107,17 +108,19 @@ export default function LoginPage() {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (
-        session &&
-        (event === "SIGNED_IN" ||
-          event === "TOKEN_REFRESHED" ||
-          event === "INITIAL_SESSION")
-      ) {
-        router.replace(next);
-        router.refresh();
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (
+          session &&
+          (event === "SIGNED_IN" ||
+            event === "TOKEN_REFRESHED" ||
+            event === "INITIAL_SESSION")
+        ) {
+          router.replace(next);
+          router.refresh();
+        }
       }
-    });
+    );
 
     return () => {
       subscription.unsubscribe();
