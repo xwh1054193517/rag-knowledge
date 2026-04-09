@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import {
@@ -88,7 +88,7 @@ function createParticles(): Particle[] {
 /**
  * 登录与注册页。
  */
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = getSupabaseBrowserClient();
@@ -470,5 +470,16 @@ export default function LoginPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * 登录页外壳，使用 Suspense 包裹依赖 useSearchParams 的内容组件。
+ */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
