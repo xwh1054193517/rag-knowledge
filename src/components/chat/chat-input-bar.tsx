@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { SendHorizonal, Sparkles } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -70,32 +70,52 @@ export default function ChatInputBar({
           </div>
 
           <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-visible">
-            {showSendingRipple ? (
-              <>
-                <motion.span
-                  key={`ripple-1-${sendingCycle}`}
-                  initial={{ scale: 0.8, opacity: 0.5 }}
-                  animate={{ scale: 2.4, opacity: 0 }}
-                  transition={{
-                    duration: 1.35,
-                    ease: "easeOut",
-                    repeat: Number.POSITIVE_INFINITY,
-                  }}
-                  className="pointer-events-none absolute inset-0 rounded-full border-2 border-[color:rgba(134,161,199,0.42)]"
-                />
-                <motion.span
-                  key={`glow-${sendingCycle}`}
-                  initial={{ opacity: 0.18 }}
-                  animate={{ opacity: [0.18, 0.36, 0.18] }}
-                  transition={{
-                    duration: 1.1,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "easeInOut",
-                  }}
-                  className="pointer-events-none absolute -inset-3 rounded-full bg-[radial-gradient(circle,color:rgba(163,190,225,0.22)_0%,rgba(163,190,225,0.08)_42%,transparent_72%)]"
-                />
-              </>
-            ) : null}
+            <AnimatePresence>
+              {showSendingRipple ? (
+                <motion.div
+                  key={`ripple-group-${sendingCycle}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="pointer-events-none absolute inset-0"
+                >
+                  <motion.span
+                    animate={{
+                      scale: [0.95, 1.65, 2.25],
+                      opacity: [0, 0.28, 0],
+                    }}
+                    transition={{
+                      duration: 1.4,
+                      ease: "easeOut",
+                      repeat: Number.POSITIVE_INFINITY,
+                    }}
+                    className="absolute inset-0 rounded-full border-2 border-[color:rgba(134,161,199,0.42)]"
+                  />
+                  <motion.span
+                    animate={{
+                      scale: [1.1, 1.85, 2.45],
+                      opacity: [0, 0.18, 0],
+                    }}
+                    transition={{
+                      duration: 1.4,
+                      ease: "easeOut",
+                      repeat: Number.POSITIVE_INFINITY,
+                      delay: 0.28,
+                    }}
+                    className="absolute inset-0 rounded-full border border-[color:rgba(134,161,199,0.28)]"
+                  />
+                  <motion.span
+                    animate={{ opacity: [0.14, 0.3, 0.14] }}
+                    transition={{
+                      duration: 1.15,
+                      repeat: Number.POSITIVE_INFINITY,
+                      ease: "easeInOut",
+                    }}
+                    className="absolute -inset-3 rounded-full bg-[radial-gradient(circle,color:rgba(163,190,225,0.22)_0%,rgba(163,190,225,0.08)_42%,transparent_72%)]"
+                  />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
 
             <motion.button
               type="button"

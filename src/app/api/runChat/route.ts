@@ -149,6 +149,19 @@ function getToolCallsFromFinalState(finalState: unknown) {
   return toolCalls.length > 0 ? toolCalls : undefined;
 }
 
+function isClosedControllerError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("Controller is already closed") ||
+    ("code" in error &&
+      typeof error.code === "string" &&
+      error.code === "ERR_INVALID_STATE")
+  );
+}
+
 /**
  * 处理聊天 POST 请求，并返回流式响应。
  */
@@ -283,6 +296,10 @@ export async function POST(request: Request) {
           didAbort = true;
         },
         onError(error) {
+          if (didAbort || isClosedControllerError(error)) {
+            return;
+          }
+
           console.error("runChat stream error:", error);
         },
       }),

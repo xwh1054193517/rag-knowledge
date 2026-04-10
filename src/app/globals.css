@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -194,4 +195,150 @@
 
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--ui-scrollbar-thumb-hover);
+}
+
+.chat-markdown {
+  color: var(--ui-text);
+  font-size: 0.97rem;
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+.chat-markdown > *:first-child {
+  margin-top: 0;
+}
+
+.chat-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.chat-markdown p {
+  margin: 0.75rem 0;
+  white-space: pre-wrap;
+}
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  margin: 1.1rem 0 0.6rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ui-text);
+}
+
+.chat-markdown h1 {
+  font-size: 1.35rem;
+}
+
+.chat-markdown h2 {
+  font-size: 1.2rem;
+}
+
+.chat-markdown h3 {
+  font-size: 1.05rem;
+}
+
+.chat-markdown ul,
+.chat-markdown ol {
+  margin: 0.8rem 0;
+  padding-left: 1.4rem;
+}
+
+.chat-markdown li {
+  margin: 0.35rem 0;
+}
+
+.chat-markdown blockquote {
+  margin: 1rem 0;
+  border-left: 3px solid var(--ui-border);
+  padding-left: 0.9rem;
+  color: var(--ui-text-faint);
+}
+
+.chat-markdown pre {
+  margin: 1rem 0;
+}
+
+.chat-markdown pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+
+.chat-markdown thead tr {
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.chat-markdown tbody tr {
+  border-bottom: 1px solid var(--ui-border-soft);
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  padding: 0.7rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chat-markdown hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--ui-border-soft);
+}
+
+.chat-markdown a {
+  color: var(--ui-accent-strong);
+}
+
+.chat-markdown .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+}
+
+.chat-markdown .hljs {
+  display: block;
+  overflow-x: auto;
+  background: transparent;
+  color: var(--ui-text);
+}
+
+.chat-markdown .hljs-keyword,
+.chat-markdown .hljs-selector-tag,
+.chat-markdown .hljs-literal {
+  color: #7c8cff;
+}
+
+.chat-markdown .hljs-string,
+.chat-markdown .hljs-doctag {
+  color: #4d8b6d;
+}
+
+.chat-markdown .hljs-title,
+.chat-markdown .hljs-section,
+.chat-markdown .hljs-built_in {
+  color: #8a5fd3;
+}
+
+.chat-markdown .hljs-comment,
+.chat-markdown .hljs-quote {
+  color: var(--ui-text-faint);
+}
+
+.chat-mermaid {
+  overflow-x: auto;
+}
+
+.chat-mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
 }

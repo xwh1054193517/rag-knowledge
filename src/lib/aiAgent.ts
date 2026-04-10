@@ -1,23 +1,20 @@
 import { TavilySearch } from "@langchain/tavily";
-import { ChatOpenAI } from "@langchain/openai";
 import { createAgent, tool } from "langchain";
 import { ChatOpenRouter } from "@langchain/openrouter";
+import { ChatOpenAI } from "@langchain/openai";
 import "dotenv/config";
 import { z } from "zod";
 
 function createLLM() {
+  // return new ChatOpenAI({
+  //   temperature: 0,
+  // });
   return new ChatOpenRouter({
     // model: process.env.MODEL_NAME ?? "minimax/minimax-m2.5:free",
     model: "openrouter/free",
     temperature: 0,
     apiKey: process.env.OPENROUTER_API_KEY,
   });
-
-  // 中转模型对tool calls有问题
-  // return new ChatOpenAI({
-  //   model: process.env.MODEL_NAME ?? "gpt-4.1-mini",
-  //   temperature: 0,
-  // });
 }
 
 function createSearchTool() {
@@ -35,7 +32,7 @@ function createSearchTool() {
     {
       name: "tavily_search",
       description:
-        "搜索最新的实时网络信息，适合新闻、天气、价格、公告、网页资料与近期动态查询。",
+        "Search the latest real-time web information for news, weather, prices, announcements, webpages, and recent updates.",
       schema: z.object({
         query: z.string().min(1, "query is required"),
       }),
@@ -44,27 +41,32 @@ function createSearchTool() {
 }
 
 function buildPrompt() {
-  const currentDate = new Date().toLocaleDateString("zh-CN", {
+  const currentDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "long",
   });
 
-  return `你是一个乐于助人的 AI 助手。
-当前日期是：${currentDate}。
-当问题需要最新、实时、联网才能确认的信息时，优先调用 tavily_search 工具，而不是直接凭记忆回答。
-调用 tavily_search 时，必须传入合法 JSON 参数，格式为 {"query":"..."}。
-用户用什么语言提问，你用什么语言回答
-如果用户在问天气、新闻、价格、公告、近期事件、最新进展、官网信息等内容，应主动使用 tavily_search。
-当需要绘制流程图、架构图、时序图等图表时，请始终使用 Mermaid，格式如下：
-\`\`\`mermaid
-图表内容
-\`\`\`
-不要使用 ASCII 字符画来代替图表。`;
+  return [
+    `You are a helpful AI assistant. Today's date is ${currentDate}.`,
+    "When a question needs current, real-time, or web-verified information, prefer using tavily_search instead of answering from memory.",
+    'When calling tavily_search, you must pass valid JSON arguments in the form {"query":"..."}.',
+    "Reply in the same language as the user.",
+    "If the user asks about weather, news, prices, announcements, recent events, latest developments, or official website information, proactively use tavily_search.",
+    "When you need to output a flowchart, architecture diagram, sequence diagram, ER diagram, state diagram, or gantt chart, you must use a Mermaid fenced code block.",
+    "Do not output bare mermaid text. Do not mix Mermaid syntax and normal explanation on the same line. Do not use ASCII art instead of diagrams.",
+    "Always format Mermaid diagrams like this:",
+    "```mermaid",
+    "graph TD",
+    "  A[Start] --> B[End]",
+    "```",
+  ].join("\n");
 }
 
-export function createAgentExecutor(userId: string) {
+export function createAgentExecutor(_userId: string) {
+  void _userId;
+
   const llm = createLLM();
   const prompt = buildPrompt();
 

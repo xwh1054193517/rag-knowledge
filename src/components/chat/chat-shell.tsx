@@ -78,6 +78,12 @@ function hasRenderableContent(message: UIMessage | undefined): boolean {
   });
 }
 
+function hasAssistantRenderableContent(messages: UIMessage[]): boolean {
+  return messages.some(
+    (message) => message.role === "assistant" && hasRenderableContent(message)
+  );
+}
+
 /**
  * 根据首条消息生成会话标题。
  */
@@ -508,6 +514,15 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
     const failedConversationId = pendingRequestConversationIdRef.current;
     const failedMode = pendingRequestModeRef.current;
 
+    if (hasAssistantRenderableContent(messages)) {
+      setIsOptimisticThinking(false);
+      setFailedRequestConversationId(null);
+      streamOwnerConversationIdRef.current = null;
+      pendingRequestConversationIdRef.current = null;
+      pendingRequestModeRef.current = null;
+      return;
+    }
+
     setIsOptimisticThinking(false);
     setFailedRequestConversationId(failedConversationId);
     streamOwnerConversationIdRef.current = null;
@@ -517,7 +532,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
         showLoading: false,
       });
     }
-  }, [loadConversationDetail, status]);
+  }, [loadConversationDetail, messages, status]);
 
   useEffect(() => {
     const scrollElement = chatScrollContainerRef.current;
@@ -1044,6 +1059,7 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
               isLoadingConversation={isConversationHydrating}
               messages={isConversationHydrating ? [] : displayMessages}
               isThinking={showThinkingProcess}
+              isStreamingResponse={isSending}
               lastUserMessageId={lastUserMessage?.id ?? null}
               onEditCancel={handleCancelEditLastUserMessage}
               onEditChange={setEditingValue}

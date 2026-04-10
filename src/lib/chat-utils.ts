@@ -74,9 +74,28 @@ function toToolParts(toolCalls: Prisma.JsonValue | null | undefined) {
     return [];
   }
 
-  return toolCalls.flatMap((toolCall) => {
+  const parts: Array<
+    | {
+        type: "dynamic-tool";
+        toolCallId: string;
+        toolName: string;
+        state: "output-available";
+        input: string;
+        output: string;
+      }
+    | {
+        type: "dynamic-tool";
+        toolCallId: string;
+        toolName: string;
+        state: "output-error";
+        input: string;
+        errorText: string;
+      }
+  > = [];
+
+  toolCalls.forEach((toolCall) => {
     if (!toolCall || typeof toolCall !== "object" || Array.isArray(toolCall)) {
-      return [];
+      return;
     }
 
     const item = toolCall as {
@@ -89,33 +108,32 @@ function toToolParts(toolCalls: Prisma.JsonValue | null | undefined) {
     };
 
     if (!item.toolCallId || !item.toolName) {
-      return [];
+      return;
     }
 
     if (item.status === "success") {
-      return [
-        {
-          type: "dynamic-tool" as const,
-          toolCallId: item.toolCallId,
-          toolName: item.toolName,
-          state: "output-available" as const,
-          input: item.inputSummary ?? "",
-          output: item.outputSummary ?? "",
-        },
-      ];
-    }
-
-    return [
-      {
-        type: "dynamic-tool" as const,
+      parts.push({
+        type: "dynamic-tool",
         toolCallId: item.toolCallId,
         toolName: item.toolName,
-        state: "output-error" as const,
+        state: "output-available",
         input: item.inputSummary ?? "",
-        errorText: item.errorText ?? "Tool call failed",
-      },
-    ];
+        output: item.outputSummary ?? "",
+      });
+      return;
+    }
+
+    parts.push({
+      type: "dynamic-tool",
+      toolCallId: item.toolCallId,
+      toolName: item.toolName,
+      state: "output-error",
+      input: item.inputSummary ?? "",
+      errorText: item.errorText ?? "Tool call failed",
+    });
   });
+
+  return parts;
 }
 
 /**

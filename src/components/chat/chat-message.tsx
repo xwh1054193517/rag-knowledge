@@ -20,6 +20,7 @@ interface ChatMessageProps {
   isActionDisabled: boolean;
   isLoadingConversation: boolean;
   isThinking: boolean;
+  isStreamingResponse: boolean;
   lastUserMessageId: string | null;
   messages: UIMessage[];
   onEditCancel: () => void;
@@ -29,6 +30,61 @@ interface ChatMessageProps {
   onStartEdit: () => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   scrollEndRef: RefObject<HTMLDivElement | null>;
+}
+
+function getValueSignature(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return `s:${value.length}:${value.slice(0, 80)}`;
+  }
+
+  try {
+    const serializedValue = JSON.stringify(value);
+    return serializedValue
+      ? `j:${serializedValue.length}:${serializedValue.slice(0, 80)}`
+      : "";
+  } catch {
+    return String(value);
+  }
+}
+
+function getMessageRenderSignature(message: UIMessage): string {
+  return `${message.id}:${message.role}:${message.parts
+    .map((part) => {
+      if (part.type === "text" || part.type === "reasoning") {
+        return `${part.type}:${part.text.length}:${part.text.slice(0, 120)}`;
+      }
+
+      if (part.type === "tool-call" || part.type === "tool-result") {
+        return `${part.type}:${part.toolCallId}:${getValueSignature(part.input)}:${"output" in part ? getValueSignature(part.output) : ""}`;
+      }
+
+      if (part.type === "tool-error") {
+        return `${part.type}:${part.toolCallId}:${getValueSignature(part.input)}:${"error" in part ? getValueSignature(part.error) : ""}`;
+      }
+
+      if (part.type === "dynamic-tool") {
+        return `${part.type}:${part.toolCallId}:${part.state}:${getValueSignature(part.input)}:${"output" in part ? getValueSignature(part.output) : ""}:${"errorText" in part && typeof part.errorText === "string" ? part.errorText : ""}`;
+      }
+
+      if (part.type.startsWith("tool-")) {
+        const toolPart = part as {
+          toolCallId?: string;
+          state?: string;
+          input?: unknown;
+          output?: unknown;
+          errorText?: string;
+        };
+
+        return `${part.type}:${toolPart.toolCallId ?? ""}:${toolPart.state ?? ""}:${getValueSignature(toolPart.input)}:${getValueSignature(toolPart.output)}:${toolPart.errorText ?? ""}`;
+      }
+
+      return part.type;
+    })
+    .join("|")}`;
 }
 
 /**
@@ -41,6 +97,7 @@ export default function ChatMessage({
   isActionDisabled,
   isLoadingConversation,
   isThinking,
+  isStreamingResponse,
   lastUserMessageId,
   messages,
   onEditCancel,
@@ -53,23 +110,31 @@ export default function ChatMessage({
 }: ChatMessageProps) {
   const [showTopOverlay, setShowTopOverlay] = useState(false);
   const [showBottomOverlay, setShowBottomOverlay] = useState(false);
+  const lastMessage = messages.at(-1);
   const messageStreamSignature = useMemo(
     () =>
-      messages
-        .map(
-          (message) =>
-            `${message.id}:${message.parts
-              .map((part) => {
-                if (part.type === "text" || part.type === "reasoning") {
-                  return `${part.type}-${part.text.length}`;
-                }
+      `${messages.length}:${lastMessage?.id ?? ""}:${lastMessage?.parts
+        .map((part) => {
+          if (part.type === "text" || part.type === "reasoning") {
+            return `${part.type}-${part.text.length}`;
+          }
 
-                return part.type;
-              })
-              .join("|")}`
-        )
-        .join(";"),
-    [messages]
+          if (
+            part.type === "tool-call" ||
+            part.type === "tool-result" ||
+            part.type === "tool-error"
+          ) {
+            return `${part.type}-${part.toolCallId}`;
+          }
+
+          if (part.type === "dynamic-tool") {
+            return `${part.type}-${part.toolCallId}-${part.state}`;
+          }
+
+          return part.type;
+        })
+        .join("|")}`,
+    [lastMessage, messages.length]
   );
 
   /**
@@ -154,16 +219,22 @@ export default function ChatMessage({
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-1 py-1 sm:px-2">
           {messages.map((message) => {
             const isLastUserMessage = message.id === lastUserMessageId;
+            const isStreamingAssistantMessage =
+              isStreamingResponse &&
+              message.role === "assistant" &&
+              message.id === lastMessage?.id;
 
             return (
               <MessageBubble
                 key={message.id}
                 message={message}
+                renderSignature={getMessageRenderSignature(message)}
                 canEdit={isLastUserMessage}
                 canRetry={isLastUserMessage}
                 editingValue={editingValue}
                 isActionDisabled={isActionDisabled}
                 isEditing={editingMessageId === message.id}
+                preferPlainText={isStreamingAssistantMessage}
                 onEditCancel={onEditCancel}
                 onEditChange={onEditChange}
                 onEditSend={onEditSend}

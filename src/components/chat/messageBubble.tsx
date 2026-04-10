@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { UIMessage } from "ai";
 import { Bot, Brain, PencilLine, RotateCcw, UserRound } from "lucide-react";
 
+import RichMessageContent from "@/components/chat/rich-message-content";
 import ToolBubble from "@/components/chat/tool-bubble";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,9 +13,11 @@ import { cn } from "@/lib/utils";
 
 interface MessageBubbleProps {
   message?: UIMessage;
+  renderSignature?: string;
   isThinking?: boolean;
   isFailure?: boolean;
   failureText?: string;
+  preferPlainText?: boolean;
   canEdit?: boolean;
   canRetry?: boolean;
   editingValue?: string;
@@ -43,9 +46,32 @@ interface NormalizedToolPart {
   errorText?: string;
 }
 
+function getToolPartTitle(part: UIMessage["parts"][number]): string {
+  if ("toolName" in part && typeof part.toolName === "string") {
+    return part.toolName;
+  }
+
+  if ("title" in part && typeof part.title === "string") {
+    return part.title;
+  }
+
+  return part.type.startsWith("tool-") ? part.type.slice(5) : "tool";
+}
+
+function getToolPartErrorText(part: UIMessage["parts"][number]): string {
+  if ("error" in part) {
+    return getToolContentText(part.error);
+  }
+
+  if ("errorText" in part && typeof part.errorText === "string") {
+    return part.errorText;
+  }
+
+  return "Tool call failed";
+}
+
 /**
- * 提取消息中的 reasoning 片段。
- */
+ * 閹绘劕褰囧☉鍫熶紖娑擃厾娈?reasoning 閻楀洦顔岄妴? */
 function getReasoningParts(message: UIMessage): NormalizedReasoningPart[] {
   return message.parts.flatMap((part, index) => {
     if (part.type !== "reasoning" || part.text.trim().length === 0) {
@@ -63,84 +89,79 @@ function getReasoningParts(message: UIMessage): NormalizedReasoningPart[] {
 }
 
 /**
- * 将不同形态的工具消息片段统一整理为可渲染结构。
- */
+ * 鐏忓棔绗夐崥灞借埌閹胶娈戝銉ュ徔濞戝牊浼呴悧鍥唽缂佺喍绔撮弫瀵告倞娑撳搫褰插〒鍙夌厠缂佹挻鐎妴? */
 function getToolParts(message: UIMessage): NormalizedToolPart[] {
-  const normalizedParts = message.parts.flatMap((part, index) => {
+  const normalizedParts: NormalizedToolPart[] = [];
+
+  message.parts.forEach((part, index) => {
     if (part.type === "tool-call") {
-      return [
-        {
-          key: `${message.id}-tool-call-${part.toolCallId}-${index}`,
-          toolCallId: part.toolCallId,
-          title: part.toolName,
-          status: "running",
-          input: part.input,
-        },
-      ];
+      normalizedParts.push({
+        key: `${message.id}-tool-call-${part.toolCallId}-${index}`,
+        toolCallId: part.toolCallId,
+        title: getToolPartTitle(part),
+        status: "running",
+        input: part.input,
+      });
+      return;
     }
 
     if (part.type === "tool-result") {
-      return [
-        {
-          key: `${message.id}-tool-result-${part.toolCallId}-${index}`,
-          toolCallId: part.toolCallId,
-          title: part.toolName,
-          status: "success",
-          input: part.input,
-          output: part.output,
-        },
-      ];
+      normalizedParts.push({
+        key: `${message.id}-tool-result-${part.toolCallId}-${index}`,
+        toolCallId: part.toolCallId,
+        title: getToolPartTitle(part),
+        status: "success",
+        input: part.input,
+        output: part.output,
+      });
+      return;
     }
 
     if (part.type === "tool-error") {
-      return [
-        {
-          key: `${message.id}-tool-error-${part.toolCallId}-${index}`,
-          toolCallId: part.toolCallId,
-          title: part.toolName,
-          status: "error",
-          input: part.input,
-          errorText: getToolContentText(part.error),
-        },
-      ];
+      normalizedParts.push({
+        key: `${message.id}-tool-error-${part.toolCallId}-${index}`,
+        toolCallId: part.toolCallId,
+        title: getToolPartTitle(part),
+        status: "error",
+        input: part.input,
+        errorText: getToolPartErrorText(part),
+      });
+      return;
     }
 
     if (part.type === "dynamic-tool") {
       if (part.state === "output-available") {
-        return [
-          {
-            key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
-            toolCallId: part.toolCallId,
-            title: part.toolName,
-            status: "success",
-            input: part.input,
-            output: part.output,
-          },
-        ];
+        normalizedParts.push({
+          key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
+          toolCallId: part.toolCallId,
+          title: getToolPartTitle(part),
+          status: "success",
+          input: part.input,
+          output: part.output,
+        });
+        return;
       }
 
       if (part.state === "output-error") {
-        return [
-          {
-            key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
-            toolCallId: part.toolCallId,
-            title: part.toolName,
-            status: "error",
-            input: part.input,
-            errorText: part.errorText,
-          },
-        ];
-      }
-
-      return [
-        {
+        normalizedParts.push({
           key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
           toolCallId: part.toolCallId,
-          title: part.toolName,
-          status: "running",
+          title: getToolPartTitle(part),
+          status: "error",
           input: part.input,
-        },
-      ];
+          errorText: part.errorText,
+        });
+        return;
+      }
+
+      normalizedParts.push({
+        key: `${message.id}-dynamic-tool-${part.toolCallId}-${index}`,
+        toolCallId: part.toolCallId,
+        title: getToolPartTitle(part),
+        status: "running",
+        input: part.input,
+      });
+      return;
     }
 
     if (part.type.startsWith("tool-")) {
@@ -154,43 +175,37 @@ function getToolParts(message: UIMessage): NormalizedToolPart[] {
       };
 
       if (toolPart.state === "output-available") {
-        return [
-          {
-            key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
-            toolCallId: toolPart.toolCallId ?? `${index}`,
-            title: toolName,
-            status: "success",
-            input: toolPart.input,
-            output: toolPart.output,
-          },
-        ];
-      }
-
-      if (toolPart.state === "output-error") {
-        return [
-          {
-            key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
-            toolCallId: toolPart.toolCallId ?? `${index}`,
-            title: toolName,
-            status: "error",
-            input: toolPart.input,
-            errorText: toolPart.errorText,
-          },
-        ];
-      }
-
-      return [
-        {
+        normalizedParts.push({
           key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
           toolCallId: toolPart.toolCallId ?? `${index}`,
           title: toolName,
-          status: "running",
+          status: "success",
           input: toolPart.input,
-        },
-      ];
-    }
+          output: toolPart.output,
+        });
+        return;
+      }
 
-    return [];
+      if (toolPart.state === "output-error") {
+        normalizedParts.push({
+          key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
+          toolCallId: toolPart.toolCallId ?? `${index}`,
+          title: toolName,
+          status: "error",
+          input: toolPart.input,
+          errorText: toolPart.errorText,
+        });
+        return;
+      }
+
+      normalizedParts.push({
+        key: `${message.id}-${part.type}-${toolPart.toolCallId ?? index}`,
+        toolCallId: toolPart.toolCallId ?? `${index}`,
+        title: toolName,
+        status: "running",
+        input: toolPart.input,
+      });
+    }
   });
 
   const toolPartsByCallId = new Map<string, NormalizedToolPart>();
@@ -232,8 +247,7 @@ function getToolParts(message: UIMessage): NormalizedToolPart[] {
 }
 
 /**
- * 将工具输入输出统一格式化为字符串。
- */
+ * 鐏忓棗浼愰崗鐤翻閸忋儴绶崙铏圭埠娑撯偓閺嶇厧绱￠崠鏍﹁礋鐎涙顑佹稉灞傗偓? */
 function getToolContentText(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -245,9 +259,68 @@ function getToolContentText(value: unknown): string {
     return String(value ?? "");
   }
 }
+
+function getValueSignature(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return `s:${value.length}:${value.slice(0, 80)}`;
+  }
+
+  try {
+    const serializedValue = JSON.stringify(value);
+    return serializedValue
+      ? `j:${serializedValue.length}:${serializedValue.slice(0, 80)}`
+      : "";
+  } catch {
+    return String(value);
+  }
+}
+
+function getMessageRenderSignature(message?: UIMessage): string {
+  if (!message) {
+    return "";
+  }
+
+  return `${message.id}:${message.role}:${message.parts
+    .map((part) => {
+      if (part.type === "text" || part.type === "reasoning") {
+        return `${part.type}:${part.text.length}:${part.text.slice(0, 120)}`;
+      }
+
+      if (part.type === "tool-call" || part.type === "tool-result") {
+        return `${part.type}:${part.toolCallId}:${getToolPartTitle(part)}:${getValueSignature(part.input)}:${"output" in part ? getValueSignature(part.output) : ""}`;
+      }
+
+      if (part.type === "tool-error") {
+        return `${part.type}:${part.toolCallId}:${getToolPartTitle(part)}:${getValueSignature(part.input)}:${getToolPartErrorText(part)}`;
+      }
+
+      if (part.type === "dynamic-tool") {
+        return `${part.type}:${part.toolCallId}:${getToolPartTitle(part)}:${part.state}:${getValueSignature(part.input)}:${"output" in part ? getValueSignature(part.output) : ""}:${"errorText" in part && typeof part.errorText === "string" ? part.errorText : ""}`;
+      }
+
+      if (part.type.startsWith("tool-")) {
+        const toolPart = part as {
+          toolCallId?: string;
+          state?: string;
+          input?: unknown;
+          output?: unknown;
+          errorText?: string;
+        };
+
+        return `${part.type}:${toolPart.toolCallId ?? ""}:${toolPart.state ?? ""}:${getValueSignature(toolPart.input)}:${getValueSignature(toolPart.output)}:${toolPart.errorText ?? ""}`;
+      }
+
+      return part.type;
+    })
+    .join("|")}`;
+}
 /**
- * 提取消息中的纯文本内容。
- */
+ * 閹绘劕褰囧☉鍫熶紖娑擃厾娈戠痪顖涙瀮閺堫剙鍞寸€瑰箍鈧? */
+void getMessageRenderSignature;
 function getMessageText(message: UIMessage): string {
   return message.parts
     .filter((part) => part.type === "text")
@@ -256,8 +329,7 @@ function getMessageText(message: UIMessage): string {
 }
 
 /**
- * 渲染思考中的占位气泡。
- */
+ * 濞撳弶鐓嬮幀婵娾偓鍐ц厬閻ㄥ嫬宕版担宥嗙毜濞壜扳偓? */
 function renderThinkingBubble() {
   return (
     <div className="flex w-full justify-start gap-3">
@@ -294,8 +366,7 @@ function renderThinkingBubble() {
 }
 
 /**
- * 渲染失败提示气泡。
- */
+ * 濞撳弶鐓嬫径杈Е閹绘劗銇氬鏃€鍦洪妴? */
 function renderFailureBubble(failureText: string) {
   return (
     <div className="flex w-full justify-start gap-3">
@@ -313,13 +384,14 @@ function renderFailureBubble(failureText: string) {
 }
 
 /**
- * 单条对话气泡。
- */
+ * 閸楁洘娼€电鐦藉鏃€鍦洪妴? */
 function MessageBubble({
   message,
+  renderSignature,
   isThinking = false,
   isFailure = false,
-  failureText = "请求失败，可重试",
+  preferPlainText = false,
+  failureText = "鐠囬攱鐪版径杈Е閿涘苯褰查柌宥堢槸",
   canEdit = false,
   canRetry = false,
   editingValue = "",
@@ -331,6 +403,7 @@ function MessageBubble({
   onRetry,
   onStartEdit,
 }: MessageBubbleProps) {
+  void renderSignature;
   if (isThinking) {
     return renderThinkingBubble();
   }
@@ -453,7 +526,13 @@ function MessageBubble({
                 : "rounded-bl-md border border-[var(--ui-border-soft)] bg-[linear-gradient(180deg,var(--ui-surface),var(--ui-surface-muted))] text-[var(--ui-text)]"
             )}
           >
-            <p className="whitespace-pre-wrap break-words">{messageText}</p>
+            {isUserMessage ? (
+              <p className="whitespace-pre-wrap break-words">{messageText}</p>
+            ) : preferPlainText ? (
+              <p className="whitespace-pre-wrap break-words">{messageText}</p>
+            ) : (
+              <RichMessageContent content={messageText} />
+            )}
           </div>
         ) : null}
 
@@ -488,4 +567,22 @@ function MessageBubble({
   );
 }
 
-export default memo(MessageBubble);
+function areMessageBubblePropsEqual(
+  previousProps: MessageBubbleProps,
+  nextProps: MessageBubbleProps
+) {
+  return (
+    previousProps.isThinking === nextProps.isThinking &&
+    previousProps.isFailure === nextProps.isFailure &&
+    previousProps.failureText === nextProps.failureText &&
+    previousProps.renderSignature === nextProps.renderSignature &&
+    previousProps.preferPlainText === nextProps.preferPlainText &&
+    previousProps.canEdit === nextProps.canEdit &&
+    previousProps.canRetry === nextProps.canRetry &&
+    previousProps.editingValue === nextProps.editingValue &&
+    previousProps.isActionDisabled === nextProps.isActionDisabled &&
+    previousProps.isEditing === nextProps.isEditing
+  );
+}
+
+export default memo(MessageBubble, areMessageBubblePropsEqual);
