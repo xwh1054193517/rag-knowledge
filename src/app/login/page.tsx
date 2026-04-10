@@ -253,7 +253,7 @@ function LoginPageContent() {
 
             <div className="mt-6 space-y-3">
               <h1 className="text-4xl font-semibold leading-tight text-[var(--ui-text)] sm:text-5xl">
-                <span className="block">知识检索 RAG Retriever</span>
+                <span className="block">知识检索 RAG Retrieval</span>
                 <span className="block">联网搜索 Web Search</span>
                 <span className="block">智能助手 AI Assistant</span>
               </h1>
