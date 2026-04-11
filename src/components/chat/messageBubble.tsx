@@ -30,6 +30,14 @@ interface MessageBubbleProps {
   onStartEdit?: () => void;
 }
 
+interface KnowledgeCitation {
+  citationLabel: string;
+  fileName: string;
+  chunkIndex: number;
+  excerpt: string;
+  similarity: number;
+}
+
 interface NormalizedReasoningPart {
   key: string;
   text: string;
@@ -260,6 +268,52 @@ function getToolContentText(value: unknown): string {
   }
 }
 
+function getKnowledgeCitations(toolParts: NormalizedToolPart[]) {
+  const citations = new Map<string, KnowledgeCitation>();
+
+  toolParts.forEach((part) => {
+    if (part.title !== "knowledge_search" || typeof part.output !== "string") {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(part.output) as {
+        matches?: Array<{
+          citationLabel?: string;
+          fileName?: string;
+          chunkIndex?: number;
+          excerpt?: string;
+          similarity?: number;
+        }>;
+      };
+
+      parsed.matches?.forEach((match) => {
+        if (
+          !match.citationLabel ||
+          !match.fileName ||
+          typeof match.chunkIndex !== "number" ||
+          typeof match.excerpt !== "string"
+        ) {
+          return;
+        }
+
+        citations.set(match.citationLabel, {
+          citationLabel: match.citationLabel,
+          fileName: match.fileName,
+          chunkIndex: match.chunkIndex,
+          excerpt: match.excerpt,
+          similarity:
+            typeof match.similarity === "number" ? match.similarity : 0,
+        });
+      });
+    } catch {
+      // Ignore non-JSON tool output.
+    }
+  });
+
+  return citations;
+}
+
 function getValueSignature(value: unknown): string {
   if (value == null) {
     return "";
@@ -420,6 +474,7 @@ function MessageBubble({
   const messageText = getMessageText(message);
   const reasoningParts = getReasoningParts(message);
   const toolParts = getToolParts(message);
+  const knowledgeCitations = getKnowledgeCitations(toolParts);
 
   if (
     !messageText &&
@@ -531,7 +586,10 @@ function MessageBubble({
             ) : preferPlainText ? (
               <p className="whitespace-pre-wrap break-words">{messageText}</p>
             ) : (
-              <RichMessageContent content={messageText} />
+              <RichMessageContent
+                content={messageText}
+                citations={knowledgeCitations}
+              />
             )}
           </div>
         ) : null}

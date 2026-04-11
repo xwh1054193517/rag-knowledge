@@ -5,15 +5,24 @@ import { ChatOpenAI } from "@langchain/openai";
 import "dotenv/config";
 import { z } from "zod";
 
+import { searchKnowledgeBase } from "@/lib/knowledge";
+
 function createLLM() {
-  // return new ChatOpenAI({
-  //   temperature: 0,
-  // });
-  return new ChatOpenRouter({
-    // model: process.env.MODEL_NAME ?? "minimax/minimax-m2.5:free",
-    model: "openrouter/free",
+  if (process.env.OPENROUTER_API_KEY) {
+    return new ChatOpenRouter({
+      model: process.env.MODEL_NAME ?? "openrouter/free",
+      temperature: 0,
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
+  }
+
+  return new ChatOpenAI({
+    model: process.env.MODEL_NAME ?? "gpt-4o-mini",
     temperature: 0,
-    apiKey: process.env.OPENROUTER_API_KEY,
+    apiKey: process.env.OPENAI_API_KEY,
+    configuration: {
+      baseURL: process.env.OPENAI_BASE_URL || undefined,
+    },
   });
 }
 
@@ -40,6 +49,23 @@ function createSearchTool() {
   );
 }
 
+function createKnowledgeSearchTool(userId: string) {
+  return tool(
+    async ({ query }) => {
+      const result = await searchKnowledgeBase(userId, query);
+      return JSON.stringify(result);
+    },
+    {
+      name: "knowledge_search",
+      description:
+        "Search the current user's private knowledge base. Use this before web search for user-specific files, uploaded documentation, notes, product specs, or project context.",
+      schema: z.object({
+        query: z.string().min(1, "query is required"),
+      }),
+    }
+  );
+}
+
 function buildPrompt() {
   const currentDate = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -50,10 +76,16 @@ function buildPrompt() {
 
   return [
     `You are a helpful AI assistant. Today's date is ${currentDate}.`,
-    "When a question needs current, real-time, or web-verified information, prefer using tavily_search instead of answering from memory.",
+    "You have access to a private knowledge base tool named knowledge_search and a web tool named tavily_search.",
+    "Always try knowledge_search first when the user might be asking about their uploaded files, private documents, notes, manuals, internal context, or project knowledge.",
+    "Use tavily_search only when the private knowledge base does not have relevant results or the user clearly needs current web information.",
+    'When calling knowledge_search, you must pass valid JSON arguments in the form {"query":"..."}.',
     'When calling tavily_search, you must pass valid JSON arguments in the form {"query":"..."}.',
     "Reply in the same language as the user.",
-    "If the user asks about weather, news, prices, announcements, recent events, latest developments, or official website information, proactively use tavily_search.",
+    "If the user asks about weather, news, prices, announcements, recent events, latest developments, or official website information, proactively use tavily_search after knowledge_search is not relevant or returns no useful match.",
+    "When knowledge_search returns relevant results, answer from those results first.",
+    "If you use private knowledge base results, cite them inline with the provided citation labels, such as [handbook.pdf#chunk-2].",
+    "Prefer concise citations near the sentence they support instead of adding a separate reference section unless the user asks for one.",
     "When you need to output a flowchart, architecture diagram, sequence diagram, ER diagram, state diagram, or gantt chart, you must use a Mermaid fenced code block.",
     "Do not output bare mermaid text. Do not mix Mermaid syntax and normal explanation on the same line. Do not use ASCII art instead of diagrams.",
     "Always format Mermaid diagrams like this:",
@@ -64,15 +96,13 @@ function buildPrompt() {
   ].join("\n");
 }
 
-export function createAgentExecutor(_userId: string) {
-  void _userId;
-
+export function createAgentExecutor(userId: string) {
   const llm = createLLM();
   const prompt = buildPrompt();
 
   return createAgent({
     model: llm,
-    tools: [createSearchTool()],
+    tools: [createKnowledgeSearchTool(userId), createSearchTool()],
     systemPrompt: prompt,
   });
 }

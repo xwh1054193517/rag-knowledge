@@ -158,7 +158,7 @@ function LoginPageContent() {
         options: {
           emailRedirectTo:
             typeof window !== "undefined"
-              ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+              ? `${window.location.origin}?next=${encodeURIComponent(next)}`
               : undefined,
         },
       });

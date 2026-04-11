@@ -74,7 +74,7 @@ export default function ToolBubble({
         </div>
       ) : null}
 
-      {/* {output ? (
+      {output ? (
         <div className="mt-3 rounded-xl bg-[var(--ui-surface)] px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--ui-text-faint)]">
             Output
@@ -89,7 +89,7 @@ export default function ToolBubble({
         <div className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs leading-5 text-rose-600 dark:text-rose-300">
           {errorText}
         </div>
-      ) : null} */}
+      ) : null}
     </div>
   );
 }

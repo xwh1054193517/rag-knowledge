@@ -1,7 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { PanelLeftClose, PanelLeftOpen, Sparkles, X } from "lucide-react";
+import Link from "next/link";
+import {
+  BookOpen,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Sparkles,
+  X,
+} from "lucide-react";
 
 import ConversationList from "@/components/chat/conversation-list";
 import type { ConversationItem } from "@/components/chat/types";
@@ -49,55 +56,93 @@ export default function ChatSidebar({
     <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
         className={cn(
-          "flex shrink-0 items-center",
-          isCollapsed ? "justify-center" : "justify-between gap-3"
+          "shrink-0",
+          isCollapsed ? "flex flex-col items-center gap-2" : "space-y-3"
         )}
       >
-        <AnimatePresence initial={false} mode="wait">
-          {!isCollapsed ? (
-            <motion.div
-              key="sidebar-brand"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.16 }}
-              className="min-w-0 flex-1"
-            >
-              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] px-3 py-2 text-xs uppercase tracking-[0.2em] text-[var(--ui-accent)] shadow-sm dark:bg-[var(--ui-surface)]">
-                <Sparkles className="size-3.5" />
-                Rag Workspace
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-
-        <div className="flex items-center gap-2">
-          {showMobileClose ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCloseMobile}
-              className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] md:hidden dark:bg-[var(--ui-surface)]"
-            >
-              <X className="size-4" />
-            </Button>
-          ) : null}
-
-          {showMobileClose ? null : (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onToggleCollapse}
-              className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] dark:bg-[var(--ui-surface)]"
-            >
-              {isCollapsed ? (
-                <PanelLeftOpen className="size-4" />
-              ) : (
-                <PanelLeftClose className="size-4" />
-              )}
-            </Button>
+        <div
+          className={cn(
+            "flex items-center",
+            isCollapsed ? "justify-center" : "justify-between gap-3"
           )}
+        >
+          <AnimatePresence initial={false} mode="wait">
+            {!isCollapsed ? (
+              <motion.div
+                key="sidebar-brand"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.16 }}
+                className="min-w-0 flex-1"
+              >
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.08)] px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.28em] text-[var(--ui-accent)] shadow-sm backdrop-blur-sm dark:bg-[var(--ui-surface)]">
+                  <Sparkles className="size-3.5 shrink-0" />
+                  <span className="truncate whitespace-nowrap">
+                    Rag Workspace
+                  </span>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="sidebar-brand-collapsed"
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ duration: 0.16 }}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.08)] text-[var(--ui-accent)] shadow-sm dark:bg-[var(--ui-surface)]">
+                  <Sparkles className="size-4" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {showMobileClose ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCloseMobile}
+                className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] md:hidden dark:bg-[var(--ui-surface)]"
+              >
+                <X className="size-4" />
+              </Button>
+            ) : null}
+
+            {showMobileClose ? null : (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onToggleCollapse}
+                className="h-10 w-10 rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] p-0 text-[var(--ui-accent)] hover:bg-[var(--ui-surface)] dark:bg-[var(--ui-surface)]"
+              >
+                {isCollapsed ? (
+                  <PanelLeftOpen className="size-4" />
+                ) : (
+                  <PanelLeftClose className="size-4" />
+                )}
+              </Button>
+            )}
+          </div>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          asChild
+          className={cn(
+            "rounded-2xl border-[var(--ui-border)] bg-[color:rgba(255,255,255,0.06)] text-[var(--ui-accent)] shadow-sm hover:bg-[var(--ui-surface)] dark:bg-[var(--ui-surface)]",
+            isCollapsed
+              ? "h-10 w-10 p-0"
+              : "h-11 w-full justify-start px-4 text-sm font-medium"
+          )}
+        >
+          <Link href="/knowledge" aria-label="Open knowledge base">
+            <BookOpen className="size-4 shrink-0" />
+            {isCollapsed ? null : <span className="ml-2">Knowledge Base</span>}
+          </Link>
+        </Button>
       </div>
 
       <ConversationList

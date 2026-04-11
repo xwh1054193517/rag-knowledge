@@ -12,6 +12,12 @@ enum MessageRole {
   ASSISTANT
 }
 
+enum DocumentStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
 model Conversation {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
@@ -42,13 +48,20 @@ model Document {
   userId       String         @map("user_id") @db.Uuid
   filePath     String         @map("file_path") @db.Text
   fileHash     String         @map("file_hash") @db.VarChar(128)
+  fileName     String?        @map("file_name") @db.VarChar(255)
+  fileSize     Int?           @map("file_size")
+  mimeType     String?        @map("mime_type") @db.VarChar(120)
+  status       DocumentStatus @default(PROCESSING)
+  errorMessage String?        @map("error_message") @db.Text
   isPublic     Boolean        @default(false) @map("is_public")
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chunks       DocumentChunk[]
   documentData DocumentData?
 
   @@unique([userId, fileHash])
   @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, status, updatedAt(sort: Desc)])
   @@index([isPublic, updatedAt(sort: Desc)])
   @@index([userId, isPublic])
   @@map("documents")
@@ -64,4 +77,22 @@ model DocumentData {
   sourceDocument Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_data")
+}
+
+model DocumentChunk {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  chunkIndex Int      @map("chunk_index")
+  content    String   @db.Text
+  metadata   Json?    @map("metadata")
+  embedding  Unsupported("vector")?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@index([userId, documentId])
+  @@map("document_chunks")
 }

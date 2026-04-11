@@ -173,9 +173,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!process.env.OPENAI_API_KEY || !process.env.TAVILY_API_KEY) {
+    if (
+      (!process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY) ||
+      !process.env.TAVILY_API_KEY
+    ) {
       return NextResponse.json(
-        { error: "Missing required API keys in environment variables." },
+        {
+          error:
+            "Missing required model or Tavily API keys in environment variables.",
+        },
         { status: 500 }
       );
     }
