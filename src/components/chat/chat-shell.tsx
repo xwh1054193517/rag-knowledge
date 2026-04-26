@@ -188,14 +188,8 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
 
   const [isConversationHydrating, setIsConversationHydrating] = useState(true);
 
-  // 聊天区域滚动容器
-  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
-  // 聊天区域滚动底部锚点
-  const chatScrollEndRef = useRef<HTMLDivElement | null>(null);
-
-  // 上一个对话 用于比对 执行滚到底部
+  // 上一个对话 用于比对
   const previousConversationIdRef = useRef(activeConversationId);
-  const previousMessageCountRef = useRef(0);
 
   const timeoutRef = useRef<number | null>(null);
   const activeConversationIdRef = useRef(activeConversationId);
@@ -535,50 +529,9 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
   }, [loadConversationDetail, messages, status]);
 
   useEffect(() => {
-    const scrollElement = chatScrollContainerRef.current;
-    const scrollEndElement = chatScrollEndRef.current;
-
-    if (!scrollElement || !scrollEndElement) {
-      return;
-    }
-
-    const isConversationChanged =
-      previousConversationIdRef.current !== activeConversationId;
-    const isMessageCountChanged =
-      previousMessageCountRef.current !== displayMessages.length;
-    const isNearBottom =
-      scrollElement.scrollHeight -
-        scrollElement.scrollTop -
-        scrollElement.clientHeight <
-      96;
-    // 如果切换了会话，就平滑滚到底
-    // 如果消息条数变了，并且用户本来就在接近底部的位置，也自动滚到底
-    if (isConversationChanged || (isMessageCountChanged && isNearBottom)) {
-      scrollEndElement.scrollIntoView({
-        block: "end",
-        behavior: isConversationChanged ? "smooth" : "auto",
-      });
-    }
-
+    // 当切换会话时，重置状态
     previousConversationIdRef.current = activeConversationId;
-    previousMessageCountRef.current = displayMessages.length;
-  }, [activeConversationId, displayMessages.length]);
-
-  useEffect(() => {
-    const didFinishHydrating =
-      previousHydratingRef.current && !isConversationHydrating;
-
-    previousHydratingRef.current = isConversationHydrating;
-
-    if (!didFinishHydrating) {
-      return;
-    }
-
-    chatScrollEndRef.current?.scrollIntoView({
-      block: "end",
-      behavior: "smooth",
-    });
-  }, [activeConversationId, isConversationHydrating]);
+  }, [activeConversationId]);
 
   useEffect(() => {
     if (!isMobileSidebarOpen) {
@@ -1066,8 +1019,6 @@ export default function ChatShell({ userEmail }: ChatShellProps) {
               onEditSend={handleSendEditedLastUserMessage}
               onRetryLastUser={handleRetryLastUserMessage}
               onStartEdit={handleStartEditLastUserMessage}
-              scrollContainerRef={chatScrollContainerRef}
-              scrollEndRef={chatScrollEndRef}
             />
             <ChatInputBar
               inputValue={inputValue}

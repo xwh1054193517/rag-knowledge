@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type RefObject,
-  type UIEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import type { UIMessage } from "ai";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import MessageBubble from "@/components/chat/messageBubble";
 
@@ -28,8 +23,6 @@ interface ChatMessageProps {
   onEditSend: () => void;
   onRetryLastUser: () => void;
   onStartEdit: () => void;
-  scrollContainerRef: RefObject<HTMLDivElement | null>;
-  scrollEndRef: RefObject<HTMLDivElement | null>;
 }
 
 function getValueSignature(value: unknown): string {
@@ -88,7 +81,7 @@ function getMessageRenderSignature(message: UIMessage): string {
 }
 
 /**
- * 聊天记录区域。
+ * 聊天记录区域 - 虚拟滚动版本
  */
 export default function ChatMessage({
   editingMessageId,
@@ -105,151 +98,198 @@ export default function ChatMessage({
   onEditSend,
   onRetryLastUser,
   onStartEdit,
-  scrollContainerRef,
-  scrollEndRef,
 }: ChatMessageProps) {
   const [showTopOverlay, setShowTopOverlay] = useState(false);
   const [showBottomOverlay, setShowBottomOverlay] = useState(false);
   const lastMessage = messages.at(-1);
-  const messageStreamSignature = useMemo(
-    () =>
-      `${messages.length}:${lastMessage?.id ?? ""}:${lastMessage?.parts
-        .map((part) => {
-          if (part.type === "text" || part.type === "reasoning") {
-            return `${part.type}-${part.text.length}`;
-          }
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
 
-          if (
-            part.type === "tool-call" ||
-            part.type === "tool-result" ||
-            part.type === "tool-error"
-          ) {
-            return `${part.type}-${part.toolCallId}`;
-          }
+  // 构建完整的消息列表（包括思考状态和失败状态）
+  const completeMessageList = useMemo(() => {
+    const list: Array<{
+      type: "message" | "thinking" | "failure";
+      message?: UIMessage;
+    }> = messages.map((msg) => ({ type: "message" as const, message: msg }));
 
-          if (part.type === "dynamic-tool") {
-            return `${part.type}-${part.toolCallId}-${part.state}`;
-          }
+    if (isThinking) {
+      list.push({ type: "thinking" });
+    }
 
-          return part.type;
-        })
-        .join("|")}`,
-    [lastMessage, messages.length]
-  );
+    if (failureConversationId) {
+      list.push({ type: "failure" });
+    }
+
+    return list;
+  }, [messages, isThinking, failureConversationId]);
+
+  // 监听消息变化，当有新消息时自动滚动到底部
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && completeMessageList.length > 0) {
+      virtuosoRef.current?.scrollToIndex({
+        index: completeMessageList.length - 1,
+        align: "end",
+        behavior: "auto",
+      });
+    }
+  }, [completeMessageList.length]);
+
+  // 当流式生成开始时，确保自动滚动
+  useEffect(() => {
+    if (isStreamingResponse) {
+      shouldAutoScrollRef.current = true;
+    }
+  }, [isStreamingResponse]);
 
   /**
    * 同步顶部和底部遮罩状态，避免重复 setState。
    */
-  function syncScrollState(nextIsAtTop: boolean, nextIsAtBottom: boolean) {
-    setShowTopOverlay((current) =>
-      current === !nextIsAtTop ? current : !nextIsAtTop
-    );
-    setShowBottomOverlay((current) =>
-      current === !nextIsAtBottom ? current : !nextIsAtBottom
-    );
-  }
-
-  useEffect(() => {
-    const scrollElement = scrollContainerRef.current;
-
-    if (!scrollElement) {
-      return;
-    }
-
-    const isAtTop = scrollElement.scrollTop < 24;
-    const isAtBottom =
-      scrollElement.scrollHeight -
-        scrollElement.scrollTop -
-        scrollElement.clientHeight <
-      24;
-
-    syncScrollState(isAtTop, isAtBottom);
-  }, [isThinking, messageStreamSignature, scrollContainerRef]);
-
-  useEffect(() => {
-    const scrollElement = scrollContainerRef.current;
-    const scrollEndElement = scrollEndRef.current;
-
-    if (!scrollElement || !scrollEndElement) {
-      return;
-    }
-
-    const isNearBottom =
-      scrollElement.scrollHeight -
-        scrollElement.scrollTop -
-        scrollElement.clientHeight <
-      120;
-
-    if (isNearBottom || isThinking) {
-      scrollEndElement.scrollIntoView({
-        block: "end",
-        behavior: "auto",
-      });
-    }
-  }, [isThinking, messageStreamSignature, scrollContainerRef, scrollEndRef]);
+  const syncScrollState = useCallback(
+    (nextIsAtTop: boolean, nextIsAtBottom: boolean) => {
+      setShowTopOverlay((current) =>
+        current === !nextIsAtTop ? current : !nextIsAtTop
+      );
+      setShowBottomOverlay((current) =>
+        current === !nextIsAtBottom ? current : !nextIsAtBottom
+      );
+    },
+    []
+  );
 
   /**
-   * 处理消息区滚动状态。
+   * 处理虚拟滚动的位置变化
    */
-  function handleScroll(event: UIEvent<HTMLDivElement>) {
-    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
-    const isAtTop = scrollTop < 24;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 24;
+  const handleRangeChange = useCallback(
+    (range: { startIndex: number; endIndex: number }) => {
+      const isAtTop = range.startIndex === 0;
+      const isAtBottom = range.endIndex >= completeMessageList.length - 1;
+      syncScrollState(isAtTop, isAtBottom);
 
-    syncScrollState(isAtTop, isAtBottom);
-  }
+      // 如果用户手动滚动到非底部位置，暂时禁用自动滚动
+      if (!isAtBottom) {
+        shouldAutoScrollRef.current = false;
+      }
+    },
+    [completeMessageList.length, syncScrollState]
+  );
+
+  /**
+   * 处理消息项的可见性变化
+   */
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      // 当用户滚动到底部时，重新启用自动滚动
+      if (atBottom) {
+        shouldAutoScrollRef.current = true;
+      }
+      syncScrollState(false, atBottom);
+    },
+    [syncScrollState]
+  );
 
   /**
    * 平滑滚动到底部。
    */
-  function handleScrollToBottom() {
-    scrollEndRef.current?.scrollIntoView({
-      block: "end",
+  const handleScrollToBottom = useCallback(() => {
+    shouldAutoScrollRef.current = true;
+    virtuosoRef.current?.scrollToIndex({
+      index: completeMessageList.length - 1,
+      align: "end",
       behavior: "smooth",
     });
-  }
+  }, [completeMessageList.length]);
+
+  /**
+   * 渲染单个消息项
+   */
+  const renderItem = useCallback(
+    (index: number, item: (typeof completeMessageList)[number]) => {
+      if (item.type === "thinking") {
+        return (
+          <div className="py-1 px-1 sm:px-2">
+            <MessageBubble isThinking />
+          </div>
+        );
+      }
+
+      if (item.type === "failure") {
+        return (
+          <div className="py-1 px-1 sm:px-2">
+            <MessageBubble isFailure />
+          </div>
+        );
+      }
+
+      const message = item.message;
+      if (!message) return null;
+
+      const isLastUserMessage = message.id === lastUserMessageId;
+      const isStreamingAssistantMessage =
+        isStreamingResponse &&
+        message.role === "assistant" &&
+        message.id === lastMessage?.id;
+
+      return (
+        <div className="py-1 px-1 sm:px-2" key={message.id}>
+          <MessageBubble
+            message={message}
+            renderSignature={getMessageRenderSignature(message)}
+            canEdit={isLastUserMessage}
+            canRetry={isLastUserMessage}
+            editingValue={editingValue}
+            isActionDisabled={isActionDisabled}
+            isEditing={editingMessageId === message.id}
+            preferPlainText={isStreamingAssistantMessage}
+            onEditCancel={onEditCancel}
+            onEditChange={onEditChange}
+            onEditSend={onEditSend}
+            onRetry={onRetryLastUser}
+            onStartEdit={onStartEdit}
+          />
+        </div>
+      );
+    },
+    [
+      lastUserMessageId,
+      isStreamingResponse,
+      lastMessage,
+      editingValue,
+      isActionDisabled,
+      editingMessageId,
+      onEditCancel,
+      onEditChange,
+      onEditSend,
+      onRetryLastUser,
+      onStartEdit,
+    ]
+  );
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden">
-      <div
-        ref={scrollContainerRef}
-        className="chat-scrollbar h-full min-h-0 overflow-y-auto"
-        onScroll={handleScroll}
-      >
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-1 py-1 sm:px-2">
-          {messages.map((message) => {
-            const isLastUserMessage = message.id === lastUserMessageId;
-            const isStreamingAssistantMessage =
-              isStreamingResponse &&
-              message.role === "assistant" &&
-              message.id === lastMessage?.id;
-
-            return (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                renderSignature={getMessageRenderSignature(message)}
-                canEdit={isLastUserMessage}
-                canRetry={isLastUserMessage}
-                editingValue={editingValue}
-                isActionDisabled={isActionDisabled}
-                isEditing={editingMessageId === message.id}
-                preferPlainText={isStreamingAssistantMessage}
-                onEditCancel={onEditCancel}
-                onEditChange={onEditChange}
-                onEditSend={onEditSend}
-                onRetry={onRetryLastUser}
-                onStartEdit={onStartEdit}
-              />
-            );
-          })}
-
-          {isThinking ? <MessageBubble isThinking /> : null}
-          {failureConversationId ? <MessageBubble isFailure /> : null}
-
-          <div ref={scrollEndRef} className="h-px w-full shrink-0" />
-        </div>
-      </div>
+      <Virtuoso
+        ref={virtuosoRef}
+        data={completeMessageList}
+        itemContent={renderItem}
+        rangeChanged={handleRangeChange}
+        atBottomStateChange={handleAtBottomStateChange}
+        initialTopMostItemIndex={
+          completeMessageList.length > 0 ? completeMessageList.length - 1 : 0
+        }
+        followOutput="auto"
+        overscan={10} // 预渲染10个额外项，提升滚动流畅度
+        className="h-full"
+        components={{
+          List: ({ children, ...props }) => (
+            <div {...props} className="mx-auto flex w-full max-w-5xl flex-col">
+              {children}
+            </div>
+          ),
+          Footer: () => (
+            <div ref={messagesEndRef} className="h-px w-full shrink-0" />
+          ),
+        }}
+      />
 
       <AnimatePresence>
         {isLoadingConversation ? (
